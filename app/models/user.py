@@ -57,24 +57,24 @@ class NextPlanModel(BaseModel):
 
 
 class User(BaseModel):
+    username: str = Field(..., pattern=USERNAME_REGEXP.pattern)
     proxies: Dict[ProxyTypes, ProxySettings] = {}
-    expire: Optional[int] = Field(None, nullable=True)
-    data_limit: Optional[int] = Field(
-        ge=0, default=None, description="data_limit can be 0 or greater"
-    )
-    data_limit_reset_strategy: UserDataLimitResetStrategy = (
-        UserDataLimitResetStrategy.no_reset
-    )
     inbounds: Dict[ProxyTypes, List[str]] = {}
-    note: Optional[str] = Field(None, nullable=True)
+    status: UserStatus = UserStatus.active
+    data_limit: Optional[int] = None
+    data_limit_reset_strategy: UserDataLimitResetStrategy = UserDataLimitResetStrategy.no_reset
+    expire: Optional[int] = None
+    on_hold_expire_duration: int = 0
+    on_hold_timeout: Optional[int] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    admin_username: Optional[str] = None
+    note: Optional[str] = None
+    custom_subscription_path: Optional[str] = None
+    custom_uuid: Optional[str] = None
     sub_updated_at: Optional[datetime] = Field(None, nullable=True)
     sub_last_user_agent: Optional[str] = Field(None, nullable=True)
     online_at: Optional[datetime] = Field(None, nullable=True)
-    on_hold_expire_duration: Optional[int] = Field(None, nullable=True)
-    on_hold_timeout: Optional[Union[datetime, None]] = Field(None, nullable=True)
-
     auto_delete_in_days: Optional[int] = Field(None, nullable=True)
-
     next_plan: Optional[NextPlanModel] = Field(None, nullable=True)
 
     @field_validator('data_limit', mode='before')
@@ -289,6 +289,8 @@ class UserResponse(User):
     subscription_url: str = ""
     proxies: dict
     excluded_inbounds: Dict[ProxyTypes, List[str]] = {}
+    custom_subscription_path: Optional[str] = None
+    custom_uuid: Optional[str] = None
 
     admin: Optional[Admin] = None
     model_config = ConfigDict(from_attributes=True)
@@ -304,10 +306,24 @@ class UserResponse(User):
     @model_validator(mode="after")
     def validate_subscription_url(self):
         if not self.subscription_url:
-            salt = secrets.token_hex(8)
-            url_prefix = (XRAY_SUBSCRIPTION_URL_PREFIX).replace('*', salt)
-            token = create_subscription_token(self.username)
-            self.subscription_url = f"{url_prefix}/{XRAY_SUBSCRIPTION_PATH}/{token}"
+            url_prefix = XRAY_SUBSCRIPTION_URL_PREFIX
+            if self.custom_subscription_path:
+                # Use custom path if provided
+                path = self.custom_subscription_path
+            else:
+                # Use default path with salt
+                salt = secrets.token_hex(8)
+                url_prefix = url_prefix.replace('*', salt)
+                path = XRAY_SUBSCRIPTION_PATH
+
+            if self.custom_uuid:
+                # Use custom UUID if provided
+                token = self.custom_uuid
+            else:
+                # Generate default token
+                token = create_subscription_token(self.username)
+
+            self.subscription_url = f"{url_prefix}/{path}/{token}"
         return self
 
     @field_validator("proxies", mode="before")

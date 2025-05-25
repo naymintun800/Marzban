@@ -6,6 +6,7 @@ from functools import lru_cache
 from hashlib import sha256
 from math import ceil
 from typing import Union
+from uuid import UUID
 
 
 from config import JWT_ACCESS_TOKEN_EXPIRE_MINUTES
@@ -62,6 +63,7 @@ def get_subscription_payload(token: str) -> Union[dict, None]:
         if len(token) < 15:
             return
 
+        # First try JWT format
         if token.startswith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."):
             payload = jwt.decode(token, get_secret_key(), algorithms=["HS256"])
             if payload.get("access") == "subscription":
@@ -69,22 +71,30 @@ def get_subscription_payload(token: str) -> Union[dict, None]:
             else:
                 return
         else:
-            u_token = token[:-10]
-            u_signature = token[-10:]
+            # Try custom UUID format first
             try:
-                u_token_dec = b64decode(
-                    (u_token.encode('utf-8') + b'=' * (-len(u_token.encode('utf-8')) % 4)),
-                    altchars=b'-_', validate=True)
-                u_token_dec_str = u_token_dec.decode('utf-8')
-            except:
-                return
-            u_token_resign = b64encode(sha256((u_token+get_secret_key()).encode('utf-8')
-                                              ).digest(), altchars=b'-_').decode('utf-8')[:10]
-            if u_signature == u_token_resign:
-                u_username = u_token_dec_str.split(',')[0]
-                u_created_at = int(u_token_dec_str.split(',')[1])
-                return {"username": u_username, "created_at": datetime.utcfromtimestamp(u_created_at)}
-            else:
-                return
+                # Check if token is a valid UUID
+                UUID(token)
+                # If it's a valid UUID, return it as is
+                return {"username": token, "created_at": datetime.utcnow()}
+            except ValueError:
+                # If not a UUID, try the original format
+                u_token = token[:-10]
+                u_signature = token[-10:]
+                try:
+                    u_token_dec = b64decode(
+                        (u_token.encode('utf-8') + b'=' * (-len(u_token.encode('utf-8')) % 4)),
+                        altchars=b'-_', validate=True)
+                    u_token_dec_str = u_token_dec.decode('utf-8')
+                except:
+                    return
+                u_token_resign = b64encode(sha256((u_token+get_secret_key()).encode('utf-8')
+                                                  ).digest(), altchars=b'-_').decode('utf-8')[:10]
+                if u_signature == u_token_resign:
+                    u_username = u_token_dec_str.split(',')[0]
+                    u_created_at = int(u_token_dec_str.split(',')[1])
+                    return {"username": u_username, "created_at": datetime.utcfromtimestamp(u_created_at)}
+                else:
+                    return
     except jwt.exceptions.PyJWTError:
         return

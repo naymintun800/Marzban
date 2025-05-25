@@ -1,7 +1,7 @@
 import re
 from distutils.version import LooseVersion
 
-from fastapi import APIRouter, Depends, Header, Path, Request, Response
+from fastapi import APIRouter, Depends, Header, Path, Request, Response, HTTPException
 from fastapi.responses import HTMLResponse
 
 from app.db import Session, crud, get_db
@@ -32,7 +32,7 @@ client_config = {
                    "reverse": False}
 }
 
-router = APIRouter(tags=['Subscription'], prefix=f'/{XRAY_SUBSCRIPTION_PATH}')
+router = APIRouter(tags=['Subscription'])
 
 
 def get_subscription_user_info(user: UserResponse) -> dict:
@@ -45,8 +45,26 @@ def get_subscription_user_info(user: UserResponse) -> dict:
     }
 
 
-@router.get("/{token}/")
-@router.get("/{token}", include_in_schema=False)
+@router.get("/{path}/{token}/")
+@router.get("/{path}/{token}", include_in_schema=False)
+def user_subscription_custom_path(
+    request: Request,
+    path: str,
+    token: str,
+    db: Session = Depends(get_db),
+    user_agent: str = Header(default="")
+):
+    """Provides a subscription link based on the user agent (Clash, V2Ray, etc.) with custom path."""
+    # Find user by custom path and token
+    user = crud.get_user_by_subscription_path(db, path, token)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return user_subscription(request, db, user, user_agent)
+
+
+@router.get(f"/{XRAY_SUBSCRIPTION_PATH}/{{token}}/")
+@router.get(f"/{XRAY_SUBSCRIPTION_PATH}/{{token}}", include_in_schema=False)
 def user_subscription(
     request: Request,
     db: Session = Depends(get_db),
