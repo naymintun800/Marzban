@@ -207,6 +207,26 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
     return get_user_queryset(db).filter(User.id == user_id).first()
 
 
+def get_user_by_subscription_path(db: Session, path: str, token: str) -> Optional[User]:
+    """
+    Retrieves a user by their custom subscription path and token.
+
+    Args:
+        db (Session): Database session.
+        path (str): The custom subscription path.
+        token (str): The subscription token.
+
+    Returns:
+        Optional[User]: The user object if found, else None.
+    """
+    return get_user_queryset(db).filter(
+        and_(
+            User.subscription_path == path,
+            User.subscription_token == token
+        )
+    ).first()
+
+
 UsersSortingOptions = Enum('UsersSortingOptions', {
     'username': User.username.asc(),
     'used_traffic': User.used_traffic.asc(),

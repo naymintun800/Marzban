@@ -71,6 +71,8 @@ class User(BaseModel):
     note: Optional[str] = None
     custom_subscription_path: Optional[str] = None
     custom_uuid: Optional[str] = None
+    subscription_path: Optional[str] = None
+    subscription_token: Optional[str] = None
     sub_updated_at: Optional[datetime] = Field(None, nullable=True)
     sub_last_user_agent: Optional[str] = Field(None, nullable=True)
     online_at: Optional[datetime] = Field(None, nullable=True)
@@ -282,6 +284,8 @@ class UserResponse(User):
     excluded_inbounds: Dict[ProxyTypes, List[str]] = {}
     custom_subscription_path: Optional[str] = None
     custom_uuid: Optional[str] = None
+    subscription_path: Optional[str] = None
+    subscription_token: Optional[str] = None
 
     admin: Optional[Admin] = None
     model_config = ConfigDict(from_attributes=True)
