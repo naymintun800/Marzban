@@ -15,7 +15,6 @@ COPY ./requirements.txt /code/
 RUN python3 -m pip install --upgrade pip setuptools \
     && pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-
 FROM python:$PYTHON_VERSION-slim
 
 ENV PYTHON_LIB_PATH=/usr/local/lib/python${PYTHON_VERSION%.*}/site-packages
@@ -29,13 +28,27 @@ COPY --from=build /usr/local/share/xray /usr/local/share/xray
 
 COPY . /code
 
-
 RUN ln -s /code/marzban-cli.py /usr/bin/marzban-cli \
     && chmod +x /usr/bin/marzban-cli \
     && marzban-cli completion install --shell bash
 
+# Create a debug script to check static files
+RUN echo '#!/bin/bash\n\
+echo "Checking static file paths..."\n\
+ls -la /code/app/dashboard/build/ || echo "build dir not found"\n\
+ls -la /code/app/dashboard/build/statics/ || echo "statics dir not found"\n\
+echo "Creating backup of init.py..."\n\
+cp /code/app/dashboard/__init__.py /code/app/dashboard/__init__.py.bak\n\
+echo "Updating init.py..."\n\
+sed -i "s|statics_dir = build_dir / '\''statics'\''|statics_dir = Path('\''/code/app/dashboard/build/statics'\'')|g" /code/app/dashboard/__init__.py\n\
+chmod -R 755 /code/app/dashboard/build\n\
+echo "Init.py updated, starting app..."\n\
+cat /code/app/dashboard/__init__.py\n\
+' > /code/debug.sh && chmod +x /code/debug.sh
+
 # Create a start script to ensure migrations run correctly
 RUN echo '#!/bin/bash\n\
+/code/debug.sh\n\
 echo "Running database migrations..."\n\
 alembic upgrade head\n\
 echo "Starting Marzban..."\n\
