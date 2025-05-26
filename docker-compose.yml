@@ -1,8 +1,10 @@
 services:
   marzban:
-    image: gozargah/marzban:latest
+    image: naymintun800/marzban:latest
     restart: always
     env_file: .env
     network_mode: host
     volumes:
       - /var/lib/marzban:/var/lib/marzban
+      - ./:/code
+    command: bash -c "alembic upgrade head && python3 main.py"
