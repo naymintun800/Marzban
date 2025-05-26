@@ -32,4 +32,11 @@ RUN ln -s /code/marzban-cli.py /usr/bin/marzban-cli \
     && chmod +x /usr/bin/marzban-cli \
     && marzban-cli completion install --shell bash
 
-CMD ["bash", "-c", "alembic upgrade head; python main.py"]
+# Create a start script to ensure migrations run correctly
+RUN echo '#!/bin/bash\n\
+echo "Running database migrations..."\n\
+alembic upgrade head\n\
+echo "Starting Marzban..."\n\
+python main.py' > /code/start.sh && chmod +x /code/start.sh
+
+CMD ["/code/start.sh"]
