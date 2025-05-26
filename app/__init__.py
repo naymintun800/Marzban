@@ -83,6 +83,22 @@ def on_startup():
         if hasattr(route, 'path'):
             print(f"Final Route: {route.path} - Methods: {getattr(route, 'methods', 'N/A')}")
     
+    # Debug: Print database info
+    from app.db import get_db
+    from app.db.crud import get_admins
+    from config import SQLALCHEMY_DATABASE_URL
+    print(f"=== DATABASE INFO ===")
+    print(f"Database URL: {SQLALCHEMY_DATABASE_URL}")
+    
+    try:
+        with next(get_db()) as db:
+            admins = get_admins(db)
+            print(f"Admin count on startup: {len(admins)}")
+            for admin in admins:
+                print(f"  - Admin: {admin.username} (sudo: {admin.is_sudo})")
+    except Exception as e:
+        print(f"Error checking admins: {e}")
+    
     paths = [f"{r.path}/" for r in app.routes]
     paths.append("/api/")
     if f"/{XRAY_SUBSCRIPTION_PATH}/" in paths:

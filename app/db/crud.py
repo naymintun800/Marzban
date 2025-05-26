@@ -221,8 +221,8 @@ def get_user_by_subscription_path(db: Session, path: str, token: str) -> Optiona
     """
     return get_user_queryset(db).filter(
         and_(
-            User.subscription_path == path,
-            User.subscription_token == token
+            User.custom_subscription_path == path,
+            User.custom_uuid == token
         )
     ).first()
 
