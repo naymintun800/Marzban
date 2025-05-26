@@ -34,7 +34,7 @@ app.add_middleware(
 )
 from app import dashboard, jobs, routers, telegram  # noqa
 from app.routers import api_router  # noqa
-from app.routers.subscription import custom_subscription_router  # noqa
+from app.routers.subscription import router as subscription_router, custom_subscription_router  # noqa
 
 # Debug flag - set to False to disable custom subscription router
 ENABLE_CUSTOM_SUBSCRIPTION = True
@@ -46,6 +46,13 @@ for route in api_router.routes:
         print(f"API Route: {route.path} - Methods: {getattr(route, 'methods', 'N/A')}")
 
 app.include_router(api_router)
+
+print("=== REGISTERING SUBSCRIPTION ROUTER ===")
+for route in subscription_router.routes:
+    if hasattr(route, 'path'):
+        print(f"Subscription Route: {route.path} - Methods: {getattr(route, 'methods', 'N/A')}")
+
+app.include_router(subscription_router)
 
 if ENABLE_CUSTOM_SUBSCRIPTION:
     print("=== REGISTERING CUSTOM SUBSCRIPTION ROUTER ===")

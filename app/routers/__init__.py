@@ -12,11 +12,12 @@ from . import (
 
 api_router = APIRouter()
 
+# Only include routers that have /api prefix or are meant to be in API
 routers = [
     admin.router,
     core.router,
     node.router,
-    subscription.router,
+    # subscription.router,  # Removed - has root level routes that conflict
     system.router,
     user_template.router,
     user.router,
