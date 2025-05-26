@@ -22,6 +22,9 @@ from config import (
     XRAY_SUBSCRIPTION_PATH,
 )
 
+# Reserved paths that should not be treated as subscription paths
+RESERVED_PATHS = {'api', 'dashboard', 'statics', 'docs', 'redoc', 'openapi.json'}
+
 client_config = {
     "clash-meta": {"config_format": "clash-meta", "media_type": "text/yaml", "as_base64": False, "reverse": False},
     "sing-box": {"config_format": "sing-box", "media_type": "application/json", "as_base64": False, "reverse": False},
@@ -58,6 +61,10 @@ def user_subscription_custom_path(
     user_agent: str = Header(default="")
 ):
     """Provides a subscription link based on the user agent (Clash, V2Ray, etc.) with custom path."""
+    # Skip if this is a reserved path
+    if path.lower() in RESERVED_PATHS:
+        raise HTTPException(status_code=404, detail="Not found")
+    
     # Find user by custom path and token
     user = crud.get_user_by_subscription_path(db, path, token)
     if not user:
