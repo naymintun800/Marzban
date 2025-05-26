@@ -5,6 +5,4 @@ services:
     env_file: .env
     network_mode: host
     volumes:
-      - /var/lib/marzban:/var/lib/marzban
-      - ./:/code
-    command: bash -c "alembic upgrade head && python3 main.py" 
+      - /var/lib/marzban:/var/lib/marzban 
