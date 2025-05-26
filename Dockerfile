@@ -15,14 +15,6 @@ COPY ./requirements.txt /code/
 RUN python3 -m pip install --upgrade pip setuptools \
     && pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-# Dashboard build stage
-FROM node:18-slim AS dashboard-build
-
-WORKDIR /dashboard
-COPY ./app/dashboard /dashboard
-RUN npm ci \
-    && VITE_BASE_API=/api/ npm run build -- --outDir build --assetsDir statics \
-    && cp ./build/index.html ./build/404.html
 
 FROM python:$PYTHON_VERSION-slim
 
@@ -37,8 +29,6 @@ COPY --from=build /usr/local/share/xray /usr/local/share/xray
 
 COPY . /code
 
-# Copy the built dashboard from the dashboard-build stage
-COPY --from=dashboard-build /dashboard/build /code/app/static
 
 RUN ln -s /code/marzban-cli.py /usr/bin/marzban-cli \
     && chmod +x /usr/bin/marzban-cli \
