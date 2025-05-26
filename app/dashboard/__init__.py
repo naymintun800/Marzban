@@ -55,5 +55,20 @@ def run_build():
 def startup():
     if DEBUG:
         run_dev()
-    else:
-        run_build()
+
+# Mount dashboard/static immediately to ensure they take precedence over later routes
+if not DEBUG:
+    # Ensure build exists or build it
+    if not build_dir.is_dir():
+        build()
+    # Mount paths
+    app.mount(
+        DASHBOARD_PATH,
+        StaticFiles(directory=build_dir, html=True),
+        name="dashboard_static_mount"
+    )
+    app.mount(
+        '/statics/',
+        StaticFiles(directory=statics_dir, html=True),
+        name="statics_static_mount"
+    )
