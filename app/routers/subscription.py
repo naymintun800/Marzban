@@ -34,6 +34,9 @@ client_config = {
 
 router = APIRouter(tags=['Subscription'])
 
+# Create a separate router for custom subscription paths
+custom_subscription_router = APIRouter()
+
 
 def get_subscription_user_info(user: UserResponse) -> dict:
     """Retrieve user subscription information including upload, download, total data, and expiry."""
@@ -45,8 +48,8 @@ def get_subscription_user_info(user: UserResponse) -> dict:
     }
 
 
-@router.get("/{path}/{token}/")
-@router.get("/{path}/{token}", include_in_schema=False)
+@custom_subscription_router.get("/{path}/{token}/")
+@custom_subscription_router.get("/{path}/{token}", include_in_schema=False)
 def user_subscription_custom_path(
     request: Request,
     path: str,
@@ -210,3 +213,7 @@ def user_subscription_with_client_type(
                                  reverse=config["reverse"])
 
     return Response(content=conf, media_type=config["media_type"], headers=response_headers)
+
+
+# Export both routers
+__all__ = ["router", "custom_subscription_router"]

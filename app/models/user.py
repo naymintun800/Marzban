@@ -303,7 +303,7 @@ class UserResponse(User):
         if not self.subscription_url:
             url_prefix = XRAY_SUBSCRIPTION_URL_PREFIX
             if self.custom_subscription_path:
-                # Use custom path if provided
+                # Use custom path directly
                 path = self.custom_subscription_path
             else:
                 # Use default path with salt
