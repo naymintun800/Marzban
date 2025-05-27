@@ -53,6 +53,7 @@ for route in subscription_router.routes:
         print(f"Subscription Route: {route.path} - Methods: {getattr(route, 'methods', 'N/A')}")
 
 app.include_router(subscription_router)
+app.include_router(custom_subscription_router)
 
 if ENABLE_CUSTOM_SUBSCRIPTION:
     print("=== REGISTERING CUSTOM SUBSCRIPTION ROUTER ===")
