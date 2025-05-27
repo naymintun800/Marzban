@@ -52,20 +52,15 @@ for route in subscription_router.routes:
     if hasattr(route, 'path'):
         print(f"Subscription Route: {route.path} - Methods: {getattr(route, 'methods', 'N/A')}")
 
-app.include_router(subscription_router)
-app.include_router(custom_subscription_router)
-
 if ENABLE_CUSTOM_SUBSCRIPTION:
     print("=== REGISTERING CUSTOM SUBSCRIPTION ROUTER ===")
     for route in custom_subscription_router.routes:
         if hasattr(route, 'path'):
             print(f"Custom Route: {route.path} - Methods: {getattr(route, 'methods', 'N/A')}")
-    
-    # Include custom subscription router AFTER API routes for proper precedence
+    # Include custom subscription router BEFORE main subscription router for proper precedence
     app.include_router(custom_subscription_router)
-else:
-    print("=== CUSTOM SUBSCRIPTION ROUTER DISABLED FOR TESTING ===")
 
+app.include_router(subscription_router)
 
 def use_route_names_as_operation_ids(app: FastAPI) -> None:
     for route in app.routes:
