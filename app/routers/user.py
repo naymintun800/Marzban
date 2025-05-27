@@ -488,7 +488,7 @@ def delete_expired_users(
 async def import_hiddify_users(
     bg: BackgroundTasks,  # Required, no default
     file: UploadFile = File(...),
-    protocols: str = Form(...),  # Required via Form(...)
+    selected_protocols: str = Form(...),  # Changed from 'protocols' to 'selected_protocols'
     db: Session = Depends(get_db),
     admin: Admin = Depends(Admin.get_current),
     set_unlimited_expire: bool = Form(False),
@@ -500,12 +500,12 @@ async def import_hiddify_users(
     - **file**: The Hiddify backup .json file.
     - **set_unlimited_expire**: If true, all users will have `expire` set to 0.
     - **enable_smart_username_parsing**: If true, use smart parsing for username and note.
-    - **protocols**: JSON string of protocols (e.g., '["vless", "vmess"]') to enable for imported users.
+    - **selected_protocols**: JSON string of protocols (e.g., '["vless", "vmess"]') to enable for imported users.
     """
     
     # Parse the protocols JSON string
     try:
-        protocol_list = json.loads(protocols)
+        protocol_list = json.loads(selected_protocols)
         if not isinstance(protocol_list, list):
             raise ValueError("Protocols must be a list")
     except (json.JSONDecodeError, ValueError) as e:

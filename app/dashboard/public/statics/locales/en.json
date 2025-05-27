@@ -169,16 +169,16 @@
   "userDialog.resetUsage": "Reset Usage",
   "userDialog.revokeSubscription": "Revoke Subscription",
   "userDialog.selectOneProtocol": "Please select at least one protocol",
-  "userDialog.shadowsocksDesc": "Fast and secure, but not efficient as others",
+  "userDialog.shadowsocksDesc": "A proxy protocol designed to circumvent internet censorship",
   "userDialog.startDate": "Start date",
   "userDialog.total": "Total: ",
-  "userDialog.trojanDesc": "Lightweight, secure and lightening fast",
+  "userDialog.trojanDesc": "A protocol that mimics HTTPS traffic",
   "userDialog.usage": "Usage",
   "userDialog.userAlreadyExists": "User already exists",
   "userDialog.userCreated": "User {{username}} created.",
   "userDialog.userEdited": "User {{username}} edited.",
-  "userDialog.vlessDesc": "Lightweight, fast and secure",
-  "userDialog.vmessDesc": "Fast and secure",
+  "userDialog.vlessDesc": "A lightweight protocol with minimal resource usage",
+  "userDialog.vmessDesc": "A protocol for enhanced security and performance",
   "userDialog.warningNoProtocol": "Please select at least one protocol",
   "userDialog.weeks": "Weeks",
   "username": "Username",
@@ -224,5 +224,6 @@
   "hiddifyImport.deleteError": "Deletion Failed",
   "hiddifyImport.deleteErrorDesc": "An error occurred while deleting imported users. Please try again.",
   "hiddifyImport.noImportedUsers": "No Imported Users",
-  "hiddifyImport.noImportedUsersDesc": "There are no users imported from Hiddify to delete."
+  "hiddifyImport.noImportedUsersDesc": "There are no users imported from Hiddify to delete.",
+  "userDialog.unlimitedData": "Unlimited Data"
 }
