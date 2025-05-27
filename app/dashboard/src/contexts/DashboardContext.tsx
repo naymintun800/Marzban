@@ -50,6 +50,7 @@ type DashboardStateType = {
   resetUsageUser: User | null;
   revokeSubscriptionUser: User | null;
   isEditingCore: boolean;
+  isImportingHiddifyUsers: boolean;
   onCreateUser: (isOpen: boolean) => void;
   onEditingUser: (user: User | null) => void;
   onDeletingUser: (user: User | null) => void;
@@ -68,6 +69,7 @@ type DashboardStateType = {
   onShowingNodesUsage: (isShowingNodesUsage: boolean) => void;
   resetDataUsage: (user: User) => Promise<void>;
   revokeSubscription: (user: User) => Promise<void>;
+  onImportHiddifyUsers: (isImporting: boolean) => void;
 };
 
 const fetchUsers = (query: FilterType): Promise<User[]> => {
@@ -116,6 +118,7 @@ export const useDashboard = create(
     isShowingNodesUsage: false,
     resetUsageUser: null,
     revokeSubscriptionUser: null,
+    isImportingHiddifyUsers: false,
     filters: {
       username: "",
       limit: getUsersPerPageLimitSize(),
@@ -133,6 +136,9 @@ export const useDashboard = create(
       });
     },
     onResetAllUsage: (isResetingAllUsage) => set({ isResetingAllUsage }),
+    onImportHiddifyUsers: (isImportingHiddifyUsers: boolean) => {
+      set({ isImportingHiddifyUsers });
+    },
     onCreateUser: (isCreatingNewUser) => set({ isCreatingNewUser }),
     onEditingUser: (editingUser) => {
       set({ editingUser });

@@ -21,6 +21,7 @@ import {
   MoonIcon,
   SquaresPlusIcon,
   SunIcon,
+  ArrowUpTrayIcon,
 } from "@heroicons/react/24/outline";
 import { DONATION_URL, REPO_URL } from "constants/Project";
 import { useDashboard } from "contexts/DashboardContext";
@@ -54,6 +55,7 @@ const HostsIcon = chakra(LinkIcon, iconProps);
 const NodesIcon = chakra(SquaresPlusIcon, iconProps);
 const NodesUsageIcon = chakra(ChartPieIcon, iconProps);
 const ResetUsageIcon = chakra(DocumentMinusIcon, iconProps);
+const HiddifyImportIcon = chakra(ArrowUpTrayIcon, iconProps);
 const NotificationCircle = chakra(Box, {
   baseStyle: {
     bg: "yellow.500",
@@ -96,6 +98,7 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
     onResetAllUsage,
     onEditingNodes,
     onShowingNodesUsage,
+    onImportHiddifyUsers,
   } = useDashboard();
   const { t } = useTranslation();
   const { colorMode, toggleColorMode } = useColorMode();
@@ -174,6 +177,16 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
                     onClick={onResetAllUsage.bind(null, true)}
                   >
                     {t("resetAllUsage")}
+                  </MenuItem>
+                  <MenuItem
+                    maxW="170px"
+                    fontSize="sm"
+                    icon={<HiddifyImportIcon />}
+                    onClick={() => {
+                      onImportHiddifyUsers(true);
+                    }}
+                  >
+                    {t("header.hiddifyImport")}
                   </MenuItem>
                 </>
               )}

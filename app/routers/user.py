@@ -1,7 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Union
+import json
+import re # Added for username sanitization
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, File, Form
+from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 
 from app import logger, xray
@@ -16,8 +19,93 @@ from app.models.user import (
     UserStatus,
     UsersUsagesResponse,
     UserUsagesResponse,
+    UserDataLimitResetStrategy,
 )
 from app.utils import report, responses
+
+# Placeholder for Hiddify Import specific models
+class HiddifyImportConfig(BaseModel):
+    set_unlimited_expire: bool
+    enable_smart_username_parsing: bool
+    protocols: List[str]
+
+# TODO: Define a more detailed response model for import summary
+class HiddifyImportResponse(BaseModel):
+    successful_imports: int
+    failed_imports: int
+    errors: List[str]
+
+# Regex for Marzban username validation (from User model, slightly simplified for generation)
+# Original: ^(?=\w{3,32}\b)[a-zA-Z0-9-_@.]+(?:_[a-zA-Z0-9-_@.]+)*$
+# For generation, we focus on allowed characters and length.
+# We will ensure the _ is not at the start/end and no consecutive _ via replacement passes.
+MARZBAN_USERNAME_ALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9_@.]")
+MARZBAN_USERNAME_MAX_LEN = 32
+MARZBAN_USERNAME_MIN_LEN = 3
+
+# Hiddify specific constants for mapping
+HIDDIFY_PACKAGE_DAYS_UNLIMITED_THRESHOLD = 365 * 10  # 10 years
+HIDDIFY_MODE_TO_MARZBAN_RESET_STRATEGY = {
+    "no_reset": UserDataLimitResetStrategy.no_reset,
+    "monthly": UserDataLimitResetStrategy.month,
+    "weekly": UserDataLimitResetStrategy.week,
+    "daily": UserDataLimitResetStrategy.day,
+    # Add other mappings if Hiddify has more, e.g., yearly
+    # "yearly": UserDataLimitResetStrategy.year, # Example, confirm Hiddify value
+}
+
+def _sanitize_raw_username(name: str, h_uuid: str) -> str:
+    """Internal helper to generate a base username, focusing on allowed chars and length."""
+    # Replace disallowed characters with underscore
+    sanitized = MARZBAN_USERNAME_ALLOWED_CHARS.sub("_", name)
+    # Remove leading/trailing underscores that might have been introduced
+    sanitized = sanitized.strip("_")
+    # Replace multiple consecutive underscores with a single one
+    sanitized = re.sub(r"_{2,}", "_", sanitized)
+
+    # Ensure minimum length
+    if len(sanitized) < MARZBAN_USERNAME_MIN_LEN:
+        # If too short after sanitization (or was empty), use a UUID-based fallback
+        # Ensure it starts with a letter, as per common username conventions, though regexp allows numbers
+        return f"h_user_{h_uuid[:8]}" # Ensure this fallback is valid
+
+    # Ensure maximum length
+    return sanitized[:MARZBAN_USERNAME_MAX_LEN]
+
+def generate_unique_marzban_username(db: Session, base_username: str, h_uuid: str) -> str:
+    """Generates a unique Marzban username, appending a suffix if needed."""
+    # First, try the base_username as is, if it's valid
+    temp_username = _sanitize_raw_username(base_username, h_uuid)
+
+    # Check if the (potentially sanitized) username is valid according to Marzban rules
+    # This is a simplified check; User model validation is the ultimate source of truth
+    if not (MARZBAN_USERNAME_MIN_LEN <= len(temp_username) <= MARZBAN_USERNAME_MAX_LEN and \
+            not temp_username.startswith("_") and not temp_username.endswith("_") and \
+            "__" not in temp_username and MARZBAN_USERNAME_ALLOWED_CHARS.sub("", temp_username) == temp_username):
+        # If sanitization itself leads to an invalid format (e.g. too short, or only special chars that got removed)
+        # or if the original base_username was something like purely numeric that got truncated too short.
+        temp_username = f"h_user_{h_uuid[:max(MARZBAN_USERNAME_MIN_LEN, MARZBAN_USERNAME_MAX_LEN - 7)]}"
+        # Ensure this fallback is also sanitized, though it should be by construction
+        temp_username = _sanitize_raw_username(temp_username, h_uuid)
+
+
+    candidate_username = temp_username
+    suffix = 1
+    while crud.get_user(db, candidate_username):
+        # If conflict, generate a new name. Max length needs to be considered for suffix.
+        base_len = len(temp_username)
+        suffix_str = f"_{suffix}"
+        if base_len + len(suffix_str) > MARZBAN_USERNAME_MAX_LEN:
+            # Truncate base_username to make space for suffix
+            candidate_username = temp_username[:MARZBAN_USERNAME_MAX_LEN - len(suffix_str)] + suffix_str
+        else:
+            candidate_username = temp_username + suffix_str
+        suffix += 1
+        if suffix > 999: # Safety break for extreme cases
+            logger.error(f"Could not generate unique username for base '{base_username}' and UUID '{h_uuid}' after 999 tries.")
+            # Fallback to a more unique name if suffixing fails badly
+            return f"h_err_{h_uuid[:MARZBAN_USERNAME_MAX_LEN-6]}"
+    return candidate_username
 
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
 
@@ -394,3 +482,328 @@ def delete_expired_users(
         )
 
     return removed_users
+
+
+@router.post("/users/import/hiddify", response_model=HiddifyImportResponse, tags=["User"])
+async def import_hiddify_users(
+    file: UploadFile = File(...),
+    protocols: str = Form(...),  # Required, no default
+    set_unlimited_expire: bool = Form(False),
+    enable_smart_username_parsing: bool = Form(True),
+    bg: BackgroundTasks = Depends(BackgroundTasks),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    """
+    Import users from a Hiddify backup JSON file.
+
+    - **file**: The Hiddify backup .json file.
+    - **set_unlimited_expire**: If true, all users will have `expire` set to 0.
+    - **enable_smart_username_parsing**: If true, use smart parsing for username and note.
+    - **protocols**: JSON string of protocols (e.g., '["vless", "vmess"]') to enable for imported users.
+    """
+    
+    # Parse the protocols JSON string
+    try:
+        protocol_list = json.loads(protocols)
+        if not isinstance(protocol_list, list):
+            raise ValueError("Protocols must be a list")
+    except (json.JSONDecodeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid protocols format: {str(e)}")
+    
+    # Create config object for internal use
+    config = HiddifyImportConfig(
+        set_unlimited_expire=set_unlimited_expire,
+        enable_smart_username_parsing=enable_smart_username_parsing,
+        protocols=protocol_list
+    )
+
+    logger.info(
+        f"Starting Hiddify import by admin '{admin.username}' with config: {config.model_dump_json()}"
+    )
+
+    successful_imports = 0
+    failed_imports = 0
+    errors = []
+    # Ensure admin context is available for crud operations if needed later
+    current_admin_db = crud.get_admin(db, admin.username)
+    if not current_admin_db:
+        # This should ideally not happen if Admin.get_current works
+        raise HTTPException(status_code=403, detail="Admin not found in database")
+
+    try:
+        contents = await file.read()
+        hiddify_data = json.loads(contents)
+    except json.JSONDecodeError:
+        logger.error("Hiddify import: Invalid JSON file.")
+        errors.append("Invalid JSON file provided.")
+        # No need to set failed_imports here, as it will be caught by the final check
+    except Exception as e:
+        logger.error(f"Hiddify import: Error reading file: {e}")
+        errors.append(f"Error reading or parsing file: {str(e)}")
+    finally:
+        await file.close()
+
+    if errors: # If file reading/parsing failed, return early
+        return HiddifyImportResponse(
+            successful_imports=0,
+            failed_imports=1, # Count as one major failure (file processing)
+            errors=errors,
+        )
+
+    hiddify_users = hiddify_data.get("users")
+    hconfigs_list = hiddify_data.get("hconfigs", []) # Expecting a list of dicts
+    
+    proxy_path_client = ""
+    if isinstance(hconfigs_list, list):
+        for h_config_item in hconfigs_list:
+            if isinstance(h_config_item, dict) and h_config_item.get("key") == "proxy_path_client":
+                proxy_path_client = h_config_item.get("value", "")
+                break
+    else:
+        logger.warning("Hiddify import: 'hconfigs' is not a list as expected. Cannot determine proxy_path_client.")
+
+
+    if not hiddify_users or not isinstance(hiddify_users, list):
+        logger.error("Hiddify import: 'users' array not found or not a list in the backup file.")
+        errors.append("'users' array not found or not a list in the backup file.")
+        return HiddifyImportResponse(
+            successful_imports=0,
+            failed_imports=1, # Count as one major failure (data structure)
+            errors=errors,
+        )
+
+    if not config.protocols:
+        logger.warning("Hiddify import: No protocols selected for import. Users will be created without active proxies.")
+        # Not an error that stops the process, but good to log. Users might get default proxies or can be edited later.
+
+    for h_user in hiddify_users:
+        marzban_username = ""
+        marzban_note = ""
+        original_hiddify_name = h_user.get("name", "").strip()
+
+        h_uuid = h_user.get("uuid")
+        if not h_uuid:
+            errors.append(f"Skipping user due to missing UUID: {h_user.get('name', 'Unknown Hiddify User')}")
+            failed_imports += 1
+            continue
+
+        # Initialize UserCreate fields
+        user_create_data = {
+            "username": "", # Will be set by parsing logic
+            "proxies": {protocol: {} for protocol in config.protocols},
+            "inbounds": {}, # Marzban will use default inbounds based on selected proxies
+            "status": UserStatus.active, # Default, will be mapped
+            "data_limit": 0, # Default, will be mapped
+            "data_limit_reset_strategy": UserDataLimitResetStrategy.no_reset, # Default, will be mapped
+            "expire": 0, # Default, will be mapped
+            "note": "", # Will be set by parsing logic
+            "custom_uuid": h_uuid,
+            "custom_subscription_path": proxy_path_client,
+            # Other fields like on_hold_timeout, on_hold_expire_duration, next_plan can be added if needed
+        }
+
+        if config.enable_smart_username_parsing:
+            # Check for "NUMBER NAME" format first, where number is the order number
+            match = re.match(r"^(\d+)\s+(.+)$", original_hiddify_name)
+            if match:
+                potential_username_num = match.group(1)
+                potential_note_name = match.group(2).strip()
+                marzban_username = generate_unique_marzban_username(db, potential_username_num, h_uuid)
+                marzban_note = potential_note_name
+            else:
+                # For other names (no leading number + space, or non-Latin etc.)
+                # Original Hiddify name becomes Marzban note. Marzban username is generated.
+                marzban_note = original_hiddify_name if original_hiddify_name else f"Imported Hiddify user {h_uuid[:8]}"
+                base_gen_username = f"h_user_{h_uuid[:8]}" # Generic base for generation
+                marzban_username = generate_unique_marzban_username(db, base_gen_username, h_uuid)
+        else: # Direct username attempt (smart parsing OFF)
+            if original_hiddify_name:
+                # Sanitize the original Hiddify name to attempt to use it as Marzban username
+                # _sanitize_raw_username itself handles falling back to a UUID-based name if sanitization results in an invalid/too short name
+                sanitized_h_name_for_username = _sanitize_raw_username(original_hiddify_name, h_uuid)
+                marzban_username = generate_unique_marzban_username(db, sanitized_h_name_for_username, h_uuid)
+                
+                # If the final username is different from the original Hiddify name, set original name as note.
+                # This covers cases where sanitization changed the name, or a suffix was added for uniqueness.
+                if marzban_username != original_hiddify_name:
+                    marzban_note = original_hiddify_name
+                # If marzban_username IS original_hiddify_name, note remains empty (as per plan)
+            else: # No original name, generate one
+                base_gen_username = f"h_user_{h_uuid[:8]}"
+                marzban_username = generate_unique_marzban_username(db, base_gen_username, h_uuid)
+                marzban_note = f"Imported Hiddify user {h_uuid[:8]}" # Default note
+        
+        user_create_data["username"] = marzban_username
+        user_create_data["note"] = marzban_note if marzban_note else None # Ensure note is None if empty
+
+        # Map data_limit
+        h_usage_limit_gb = h_user.get("usage_limit_GB")
+        if h_usage_limit_gb is not None:
+            try:
+                user_create_data["data_limit"] = int(float(h_usage_limit_gb) * 1024 * 1024 * 1024) if float(h_usage_limit_gb) > 0 else 0
+            except ValueError:
+                errors.append(f"Invalid usage_limit_GB \'{h_usage_limit_gb}\' for Hiddify user {original_hiddify_name} (UUID: {h_uuid}). Setting to 0.")
+                user_create_data["data_limit"] = 0
+        else:
+            user_create_data["data_limit"] = 0 # Default to unlimited if not present
+
+        # Map expire
+        if config.set_unlimited_expire:
+            user_create_data["expire"] = 0
+        else:
+            h_package_days = h_user.get("package_days")
+            h_start_date_str = h_user.get("start_date") # Format "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS"
+
+            if h_package_days is not None:
+                try:
+                    package_days_int = int(h_package_days)
+                    if package_days_int >= HIDDIFY_PACKAGE_DAYS_UNLIMITED_THRESHOLD or package_days_int <= 0: # Also treat 0 or negative as unlimited
+                        user_create_data["expire"] = 0
+                    else:
+                        start_datetime_utc = None
+                        if h_start_date_str:
+                            try:
+                                # Attempt to parse both "YYYY-MM-DD" and "YYYY-MM-DD HH:MM:SS"
+                                if ' ' in h_start_date_str:
+                                    start_datetime_utc = datetime.strptime(h_start_date_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                                else:
+                                    start_datetime_utc = datetime.strptime(h_start_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                            except ValueError:
+                                errors.append(f"Invalid start_date format \'{h_start_date_str}\' for Hiddify user {original_hiddify_name} (UUID: {h_uuid}). Using current date.")
+                                start_datetime_utc = datetime.now(timezone.utc)
+                        else: # No start_date, use current date
+                            start_datetime_utc = datetime.now(timezone.utc)
+
+                        # If start_date is in the past, calculate expiry from now, otherwise from start_date
+                        # This interpretation might need refinement based on exact Hiddify behavior for past start_dates.
+                        # For now, if start_date is past, effectively the package starts "now" for expiry calculation.
+                        # if start_datetime_utc < datetime.now(timezone.utc):
+                        #     start_datetime_utc = datetime.now(timezone.utc)
+                        # The above logic is often what users expect if a package is "activated" late.
+                        # However, if Hiddify strictly adheres to start_date, we'd use it regardless.
+                        # For this implementation, let's use the later of start_date or now to begin counting package_days.
+                        effective_start_date = max(start_datetime_utc, datetime.now(timezone.utc))
+
+                        user_create_data["expire"] = int((effective_start_date + timedelta(days=package_days_int)).timestamp())
+
+                except ValueError:
+                    errors.append(f"Invalid package_days \'{h_package_days}\' for Hiddify user {original_hiddify_name} (UUID: {h_uuid}). Setting to unlimited.")
+                    user_create_data["expire"] = 0
+            else: # No package_days, assume unlimited
+                user_create_data["expire"] = 0
+
+        # Map status
+        h_enable = h_user.get("enable") # boolean
+        if isinstance(h_enable, bool):
+            user_create_data["status"] = UserStatus.active if h_enable else UserStatus.disabled
+        else:
+            # Default to active if 'enable' field is missing or not a boolean
+            user_create_data["status"] = UserStatus.active
+            if h_enable is not None: # Log if it's present but not bool
+                 errors.append(f"Invalid 'enable' field value \'{h_enable}\' for Hiddify user {original_hiddify_name} (UUID: {h_uuid}). Defaulting to active.")
+
+
+        # Map data_limit_reset_strategy
+        h_mode = h_user.get("mode") # e.g., "no_reset", "monthly"
+        if h_mode in HIDDIFY_MODE_TO_MARZBAN_RESET_STRATEGY:
+            user_create_data["data_limit_reset_strategy"] = HIDDIFY_MODE_TO_MARZBAN_RESET_STRATEGY[h_mode]
+        else:
+            # Default to no_reset if mode is missing or not recognized
+            user_create_data["data_limit_reset_strategy"] = UserDataLimitResetStrategy.no_reset
+            if h_mode: # Log if a mode was provided but not recognized
+                errors.append(f"Unrecognized Hiddify mode \'{h_mode}\' for user {original_hiddify_name} (UUID: {h_uuid}). Defaulting to no_reset.")
+
+
+        try:
+            # Prepare UserCreate Pydantic model
+            # Ensure all required fields for UserCreate are present in user_create_data
+            # UserCreate might have specific requirements or default factories for some fields
+            # For example, 'proxies' and 'inbounds' are dicts. 'status' and 'data_limit_reset_strategy' are enums.
+            # 'expire' and 'data_limit' can be None.
+
+            # Ensure enum values are correctly passed if UserCreate expects enum objects directly
+            # However, crud.create_user likely handles string versions of enums if UserCreate model does.
+            # For now, assuming string enum values are acceptable if UserCreate takes them.
+            # If UserCreate model is strict, convert to enum: e.g. UserStatus(user_create_data["status"])
+
+            # Minimal UserCreate needs: username, proxies. Others have defaults or are Optional.
+            # We are providing more than minimal.
+            user_to_create = UserCreate(
+                username=user_create_data["username"],
+                proxies=user_create_data["proxies"],
+                inbounds=user_create_data.get("inbounds", {}),
+                status=user_create_data.get("status", UserStatus.active), # Ensure this is UserStatus enum or valid string
+                data_limit=user_create_data.get("data_limit"),
+                data_limit_reset_strategy=user_create_data.get("data_limit_reset_strategy", UserDataLimitResetStrategy.no_reset), # Ensure this is enum or valid string
+                expire=user_create_data.get("expire"),
+                note=user_create_data.get("note"),
+                custom_uuid=user_create_data.get("custom_uuid"),
+                custom_subscription_path=user_create_data.get("custom_subscription_path"),
+                # Ensure other UserCreate fields like on_hold_timeout, on_hold_expire_duration, next_plan are handled if they are part of your plan.
+                # For this implementation, they are not explicitly mapped from Hiddify, so they'd take defaults or be None.
+            )
+
+            logger.debug(f"Attempting to create Marzban user: {user_to_create.model_dump_json(exclude_none=True)}")
+            created_db_user = crud.create_user(db, user_to_create, admin=current_admin_db)
+
+            if created_db_user:
+                successful_imports += 1
+                logger.info(f"Successfully imported Hiddify user '{original_hiddify_name}' as Marzban user '{created_db_user.username}' (UUID: {h_uuid})")
+                bg.add_task(xray.operations.add_user, dbuser=created_db_user)
+                report_user = UserResponse.model_validate(created_db_user)
+                bg.add_task(report.user_created, user=report_user, user_id=created_db_user.id, by=admin, user_admin=created_db_user.admin)
+            else:
+                # This case should ideally not be reached if crud.create_user raises an exception on failure.
+                failed_imports += 1
+                error_msg = f"Failed to import Hiddify user '{original_hiddify_name}' (UUID: {h_uuid}). crud.create_user returned None."
+                logger.error(error_msg)
+                errors.append(error_msg)
+
+        except IntegrityError as e:
+            db.rollback()
+            failed_imports += 1
+            error_msg = f"Failed to import Hiddify user '{original_hiddify_name}' (UUID: {h_uuid}) due to database integrity error (e.g., username exists or other constraint): {e}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+        except ValueError as e: # Catch Pydantic validation errors or other ValueErrors
+            db.rollback() # Rollback if any model validation fails within crud or UserCreate instantiation
+            failed_imports += 1
+            error_msg = f"Failed to import Hiddify user '{original_hiddify_name}' (UUID: {h_uuid}) due to data validation error: {e}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+        except Exception as e:
+            db.rollback()
+            failed_imports += 1
+            error_msg = f"An unexpected error occurred while importing Hiddify user '{original_hiddify_name}' (UUID: {h_uuid}): {e}"
+            logger.error(error_msg, exc_info=True)
+            errors.append(error_msg)
+
+    if not errors and successful_imports == 0 and failed_imports == 0 and hiddify_users:
+        # This case means we iterated users but didn't actually do anything (e.g. if all users had missing UUIDs)
+        # or if the loop for h_user in hiddify_users was empty but hiddify_users itself was not.
+        if not hiddify_users: # if hiddify_users was empty from the start
+             errors.append("No users found in the Hiddify backup file.")
+        else: # if users were present but all failed early (e.g. no UUID)
+            if not errors: # if no specific errors were added, add a generic one
+                 errors.append("No users could be processed from the Hiddify backup.")
+        # If errors list already has items, failed_imports should reflect that.
+        # If successful_imports is 0 and failed_imports is 0, but there were users,
+        # it means all of them failed in a way that incremented failed_imports OR the processing logic is incomplete.
+        # The primary goal here is to avoid returning 0 successful, 0 failed, and 0 errors if there was data to process.
+        if not failed_imports and not errors:
+            errors.append("Import logic partially implemented or no valid users found to import.")
+        if not failed_imports and errors:
+             failed_imports = len(hiddify_users) # assume all failed if errors exist but counter wasn't hit
+
+    elif not errors and successful_imports == 0 and failed_imports == 0 and not hiddify_users:
+        errors.append("No users found in the Hiddify backup file to import.")
+
+    logger.info(
+        f"Hiddify import completed for admin '{admin.username}'. Successful: {successful_imports}, Failed: {failed_imports}. Errors: {errors}"
+    )
+    return HiddifyImportResponse(
+        successful_imports=successful_imports,
+        failed_imports=failed_imports,
+        errors=errors,
+    )

@@ -5,6 +5,7 @@ import { Filters } from "components/Filters";
 import { Footer } from "components/Footer";
 import { Header } from "components/Header";
 import { HostsDialog } from "components/HostsDialog";
+import { HiddifyImportModal } from "components/HiddifyImportModal";
 import { NodesDialog } from "components/NodesModal";
 import { NodesUsage } from "components/NodesUsage";
 import { QRCodeDialog } from "components/QRCodeDialog";
@@ -39,6 +40,7 @@ export const Dashboard: FC = () => {
         <NodesUsage />
         <ResetAllUsageModal />
         <CoreSettingsModal />
+        <HiddifyImportModal />
       </Box>
       <Footer />
     </VStack>
