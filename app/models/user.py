@@ -13,7 +13,7 @@ from app.subscription.share import generate_v2ray_links
 from app.utils.jwt import create_subscription_token
 from config import XRAY_SUBSCRIPTION_PATH, XRAY_SUBSCRIPTION_URL_PREFIX
 
-USERNAME_REGEXP = re.compile(r"^[a-zA-Z0-9-_@.]+(?:_[a-zA-Z0-9-_@.]+)*$")
+USERNAME_REGEXP = re.compile(r"^(?=\\w{3,32}\\b)[a-zA-Z0-9-_@.]+(?:_[a-zA-Z0-9-_@.]+)*$")
 
 
 class ReminderType(str, Enum):
@@ -57,7 +57,6 @@ class NextPlanModel(BaseModel):
 
 
 class User(BaseModel):
-    username: str = Field(..., min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9-_@.]+(?:_[a-zA-Z0-9-_@.]+)*$")
     proxies: Dict[ProxyTypes, ProxySettings] = {}
     inbounds: Dict[ProxyTypes, List[str]] = {}
     status: UserStatus = UserStatus.active
@@ -111,6 +110,15 @@ class User(BaseModel):
         # Check if expire is 0 or None and timeout is not 0 or None
         if (v in (0, None)):
             return None
+        return v
+
+    @field_validator("username", check_fields=False)
+    @classmethod
+    def validate_username(cls, v):
+        if not USERNAME_REGEXP.match(v):
+            raise ValueError(
+                "Username only can be 3 to 32 characters and contain a-z, 0-9, and underscores in between."
+            )
         return v
 
 
