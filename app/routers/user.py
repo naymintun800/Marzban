@@ -486,13 +486,13 @@ def delete_expired_users(
 
 @router.post("/users/import/hiddify", response_model=HiddifyImportResponse, tags=["User"])
 async def import_hiddify_users(
+    bg: BackgroundTasks,  # Required, no default
     file: UploadFile = File(...),
-    protocols: str = Form(...),  # Required, no default
-    set_unlimited_expire: bool = Form(False),
-    enable_smart_username_parsing: bool = Form(True),
-    bg: BackgroundTasks = Depends(BackgroundTasks),
+    protocols: str = Form(...),  # Required via Form(...)
     db: Session = Depends(get_db),
     admin: Admin = Depends(Admin.get_current),
+    set_unlimited_expire: bool = Form(False),
+    enable_smart_username_parsing: bool = Form(True),
 ):
     """
     Import users from a Hiddify backup JSON file.
