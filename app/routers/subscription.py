@@ -64,15 +64,23 @@ def user_subscription_custom_path(
     # Skip if this is a reserved path
     if path.lower() in RESERVED_PATHS:
         raise HTTPException(status_code=404, detail="Not found")
-    
-    # Find user by custom path and token
-    user = crud.get_user_by_subscription_path(db, path, token)
-    if not user:
+
+    # Find ORM user by custom path and token
+    orm_user = db.query(crud.User).filter(
+        crud.User.custom_subscription_path == path,
+        crud.User.custom_uuid == token
+    ).first()
+
+    if not orm_user:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    # Update subscription access time
-    crud.update_user_sub(db, user, user_agent)
-    
+
+    # Update subscription access time on the ORM user
+    updated_orm_user = crud.update_user_sub(db, orm_user, user_agent)
+
+    # Convert the updated ORM user to Pydantic UserResponse model
+    # This ensures all validators, including for 'proxies', are run.
+    user = UserResponse.model_validate(updated_orm_user)
+
     # Generate subscription content
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
