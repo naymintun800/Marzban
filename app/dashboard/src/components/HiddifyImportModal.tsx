@@ -280,7 +280,7 @@ export const HiddifyImportModal: FC = () => {
     <Modal isOpen={isImportingHiddifyUsers} onClose={onClose} size="2xl">
       <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
       <FormProvider {...form}>
-        <ModalContent mx="3">
+        <ModalContent mx="3" maxH="90vh" overflowY="auto">
           <ModalHeader pt={6}>
             <HStack gap={2}>
               <Icon color="primary">
@@ -293,74 +293,90 @@ export const HiddifyImportModal: FC = () => {
           </ModalHeader>
           <ModalCloseButton mt={3} disabled={isImporting || isDeletingImported} />
           
-          <ModalBody>
+          <ModalBody pb={4}>
             <Grid
               templateColumns={{
                 base: "repeat(1, 1fr)",
                 md: "repeat(2, 1fr)",
               }}
-              gap={3}
+              gap={6}
             >
               <GridItem>
-                <VStack justifyContent="space-between">
+                <VStack spacing={4} align="stretch">
                   {/* File Upload */}
-                  <FormControl mb={"10px"}>
+                  <FormControl>
                     <FormLabel>{t("hiddifyImport.selectFile")}</FormLabel>
-                    <Input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".json"
-                      onChange={handleFileChange}
-                      disabled={isImporting}
-                      size="sm"
-                      borderRadius="6px"
-                      sx={{
-                        "&::file-selector-button": {
-                          bg: "primary.500",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "md",
-                          px: 4,
-                          py: 2,
-                          mr: 3,
-                          cursor: "pointer",
-                          _hover: {
-                            bg: "primary.600",
+                    <Box position="relative">
+                      <Input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".json"
+                        onChange={handleFileChange}
+                        disabled={isImporting}
+                        size="md"
+                        borderRadius="6px"
+                        height="40px"
+                        sx={{
+                          "&::file-selector-button": {
+                            bg: "primary.500",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "md",
+                            px: 4,
+                            py: 2,
+                            mr: 3,
+                            cursor: "pointer",
+                            fontSize: "sm",
+                            _hover: {
+                              bg: "primary.600",
+                            },
                           },
-                        },
-                      }}
-                    />
-                    {form.getValues("file") && (
-                      <Text fontSize="sm" color="green.500" mt={1}>
-                        {t("hiddifyImport.fileSelected", { filename: form.getValues("file").name })}
-                      </Text>
-                    )}
+                        }}
+                      />
+                      {form.watch("file") && (
+                        <Text fontSize="sm" color="green.500" mt={2}>
+                          {t("hiddifyImport.fileSelected", { filename: form.watch("file").name })}
+                        </Text>
+                      )}
+                    </Box>
                   </FormControl>
 
                   {/* Configuration Options */}
-                  <FormControl mb={"10px"}>
-                    <Checkbox
-                      isChecked={form.getValues("set_unlimited_expire")}
-                      onChange={(e) => form.setValue("set_unlimited_expire", e.target.checked)}
-                      disabled={isImporting}
-                      size="sm"
-                    >
-                      <FormLabel m={0} fontSize="sm">{t("hiddifyImport.unlimitedExpiration")}</FormLabel>
-                    </Checkbox>
+                  <FormControl>
+                    <Controller
+                      control={form.control}
+                      name="set_unlimited_expire"
+                      render={({ field: { onChange, value } }) => (
+                        <Checkbox
+                          isChecked={value}
+                          onChange={onChange}
+                          disabled={isImporting}
+                          size="sm"
+                        >
+                          <Text fontSize="sm">{t("hiddifyImport.unlimitedExpiration")}</Text>
+                        </Checkbox>
+                      )}
+                    />
                     <Text fontSize="xs" color="gray.500" mt={1}>
                       {t("hiddifyImport.unlimitedExpirationDesc")}
                     </Text>
                   </FormControl>
 
-                  <FormControl mb={"10px"}>
-                    <Checkbox
-                      isChecked={form.getValues("enable_smart_username_parsing")}
-                      onChange={(e) => form.setValue("enable_smart_username_parsing", e.target.checked)}
-                      disabled={isImporting}
-                      size="sm"
-                    >
-                      <FormLabel m={0} fontSize="sm">{t("hiddifyImport.smartUsernameParsing")}</FormLabel>
-                    </Checkbox>
+                  <FormControl>
+                    <Controller
+                      control={form.control}
+                      name="enable_smart_username_parsing"
+                      render={({ field: { onChange, value } }) => (
+                        <Checkbox
+                          isChecked={value}
+                          onChange={onChange}
+                          disabled={isImporting}
+                          size="sm"
+                        >
+                          <Text fontSize="sm">{t("hiddifyImport.smartUsernameParsing")}</Text>
+                        </Checkbox>
+                      )}
+                    />
                     <Text fontSize="xs" color="gray.500" mt={1}>
                       {t("hiddifyImport.smartUsernameParsingDesc")}
                     </Text>
@@ -368,7 +384,7 @@ export const HiddifyImportModal: FC = () => {
 
                   {/* Import Progress */}
                   {isImporting && (
-                    <Box w="full" mb={"10px"}>
+                    <Box w="full">
                       <Text fontSize="sm" mb={2}>{t("hiddifyImport.importing")}</Text>
                       <Progress size="sm" isIndeterminate colorScheme="primary" />
                     </Box>
@@ -376,7 +392,7 @@ export const HiddifyImportModal: FC = () => {
 
                   {/* Import Results */}
                   {importResult && (
-                    <Alert status={importResult.successful_imports > 0 ? "success" : "warning"} mb={"10px"}>
+                    <Alert status={importResult.successful_imports > 0 ? "success" : "warning"}>
                       <AlertIcon />
                       <VStack align="start" spacing={1} flex={1}>
                         <Text fontSize="sm" fontWeight="medium">
@@ -409,36 +425,38 @@ export const HiddifyImportModal: FC = () => {
                   isInvalid={!!form.formState.errors.selected_protocols?.message}
                 >
                   <FormLabel>{t("hiddifyImport.protocolSelection")}</FormLabel>
-                  <Controller
-                    control={form.control}
-                    name="selected_protocols"
-                    render={({ field }) => {
-                      return (
-                        <RadioGroup
-                          list={[
-                            {
-                              title: "vmess",
-                              description: t("userDialog.vmessDesc"),
-                            },
-                            {
-                              title: "vless",
-                              description: t("userDialog.vlessDesc"),
-                            },
-                            {
-                              title: "trojan",
-                              description: t("userDialog.trojanDesc"),
-                            },
-                            {
-                              title: "shadowsocks",
-                              description: t("userDialog.shadowsocksDesc"),
-                            },
-                          ]}
-                          disabled={isImporting}
-                          {...field}
-                        />
-                      );
-                    }}
-                  />
+                  <Box position="relative" zIndex={1}>
+                    <Controller
+                      control={form.control}
+                      name="selected_protocols"
+                      render={({ field }) => {
+                        return (
+                          <RadioGroup
+                            list={[
+                              {
+                                title: "vmess",
+                                description: t("userDialog.vmessDesc"),
+                              },
+                              {
+                                title: "vless",
+                                description: t("userDialog.vlessDesc"),
+                              },
+                              {
+                                title: "trojan",
+                                description: t("userDialog.trojanDesc"),
+                              },
+                              {
+                                title: "shadowsocks",
+                                description: t("userDialog.shadowsocksDesc"),
+                              },
+                            ]}
+                            disabled={isImporting}
+                            {...field}
+                          />
+                        );
+                      }}
+                    />
+                  </Box>
                   <FormErrorMessage>
                     {form.formState.errors.selected_protocols?.message}
                   </FormErrorMessage>
@@ -447,7 +465,7 @@ export const HiddifyImportModal: FC = () => {
             </Grid>
           </ModalBody>
 
-          <ModalFooter mt="3">
+          <ModalFooter pt={4} pb={6}>
             <HStack spacing={3} w="full" flexDirection={{ base: "column", sm: "row" }}>
               <Button
                 variant="outline"
@@ -472,7 +490,7 @@ export const HiddifyImportModal: FC = () => {
               <Button
                 colorScheme="primary"
                 onClick={handleImport}
-                disabled={!form.getValues("file") || form.getValues("selected_protocols").length === 0 || isImporting || isDeletingImported}
+                disabled={!form.watch("file") || form.watch("selected_protocols").length === 0 || isImporting || isDeletingImported}
                 leftIcon={isImporting ? <Spinner size="xs" /> : undefined}
                 size="sm"
                 flex={1}

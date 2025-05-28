@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Header, Path, Request, Response, HTTPExc
 from fastapi.responses import HTMLResponse
 
 from app.db import Session, crud, get_db
+from app.db.models import User
 from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.share import encode_title, generate_subscription
@@ -66,9 +67,9 @@ def user_subscription_custom_path(
         raise HTTPException(status_code=404, detail="Not found")
 
     # Find ORM user by custom path and token
-    orm_user = db.query(crud.User).filter(
-        crud.User.custom_subscription_path == path,
-        crud.User.custom_uuid == token
+    orm_user = db.query(User).filter(
+        User.custom_subscription_path == path,
+        User.custom_uuid == token
     ).first()
 
     if not orm_user:
