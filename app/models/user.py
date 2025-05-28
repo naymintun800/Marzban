@@ -63,6 +63,7 @@ class User(BaseModel):
     data_limit: Optional[int] = None
     data_limit_reset_strategy: UserDataLimitResetStrategy = UserDataLimitResetStrategy.no_reset
     expire: Optional[int] = None
+    used_traffic: Optional[int] = 0
     on_hold_expire_duration: Optional[int] = Field(None, nullable=True)
     on_hold_timeout: Optional[Union[datetime, None]] = Field(None, nullable=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)

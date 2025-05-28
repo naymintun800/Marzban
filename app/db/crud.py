@@ -402,6 +402,7 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
         username=user.username,
         proxies=proxies,
         status=user.status,
+        used_traffic=user.used_traffic or 0,
         data_limit=(user.data_limit or None),
         expire=(user.expire or None),
         admin=admin,

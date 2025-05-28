@@ -637,6 +637,17 @@ async def import_hiddify_users(
         user_create_data["username"] = marzban_username
         user_create_data["note"] = marzban_note if marzban_note else None # Ensure note is None if empty
 
+        # Map current_usage_GB to used_traffic
+        h_current_usage_gb = h_user.get("current_usage_GB")
+        if h_current_usage_gb is not None:
+            try:
+                user_create_data["used_traffic"] = int(float(h_current_usage_gb) * 1024 * 1024 * 1024) if float(h_current_usage_gb) > 0 else 0
+            except ValueError:
+                errors.append(f"Invalid current_usage_GB \'{h_current_usage_gb}\' for Hiddify user {original_hiddify_name} (UUID: {h_uuid}). Setting used_traffic to 0.")
+                user_create_data["used_traffic"] = 0
+        else:
+            user_create_data["used_traffic"] = 0 # Default to 0 if not present
+
         # Map data_limit
         h_usage_limit_gb = h_user.get("usage_limit_GB")
         if h_usage_limit_gb is not None:
@@ -733,11 +744,12 @@ async def import_hiddify_users(
                 username=user_create_data["username"],
                 proxies=user_create_data["proxies"],
                 inbounds=user_create_data.get("inbounds", {}),
-                status=user_create_data.get("status", UserStatus.active), # Ensure this is UserStatus enum or valid string
+                status=user_create_data.get("status", UserStatus.active),
                 data_limit=user_create_data.get("data_limit"),
-                data_limit_reset_strategy=user_create_data.get("data_limit_reset_strategy", UserDataLimitResetStrategy.no_reset), # Ensure this is enum or valid string
+                data_limit_reset_strategy=user_create_data.get("data_limit_reset_strategy", UserDataLimitResetStrategy.no_reset),
                 expire=user_create_data.get("expire"),
                 note=user_create_data.get("note"),
+                used_traffic=user_create_data.get("used_traffic", 0),
                 custom_uuid=user_create_data.get("custom_uuid"),
                 custom_subscription_path=user_create_data.get("custom_subscription_path"),
                 # Ensure other UserCreate fields like on_hold_timeout, on_hold_expire_duration, next_plan are handled if they are part of your plan.
