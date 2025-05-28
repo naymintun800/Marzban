@@ -318,24 +318,20 @@ class UserResponse(User):
     def validate_subscription_url(self):
         if not self.subscription_url:
             url_prefix = XRAY_SUBSCRIPTION_URL_PREFIX
-            if self.custom_subscription_path:
+            if self.custom_subscription_path and self.custom_uuid:
                 # Use custom path directly
                 path = self.custom_subscription_path
-            else:
-                # Use default path with salt
-                salt = secrets.token_hex(8)
-                url_prefix = url_prefix.replace('*', salt)
-                path = XRAY_SUBSCRIPTION_PATH
-
-            if self.custom_uuid:
-                # Use custom UUID if provided
                 token = self.custom_uuid
+                # url_prefix from config should be the base domain for custom paths too
+                self.subscription_url = f"{url_prefix.rstrip('/')}/{path}/{token}"
             else:
-                # Generate default token
+                # Use default path with salt for regular subscriptions
+                current_url_prefix = url_prefix # Use the original prefix if not using salt logic
+                salt = secrets.token_hex(8)
+                current_url_prefix = url_prefix.replace('*', salt)
+                path = XRAY_SUBSCRIPTION_PATH
                 token = create_subscription_token(self.username)
-            
-            # Original logic for URL construction
-            self.subscription_url = f"{url_prefix}/{path}/{token}"
+                self.subscription_url = f"{current_url_prefix}/{path}/{token}"
         return self
 
     @field_validator("proxies", mode="before")

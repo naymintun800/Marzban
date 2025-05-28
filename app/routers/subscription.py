@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 
 from app.db import Session, crud, get_db
 from app.db.models import User  # Import the SQLAlchemy User model
-from app.dependencies import get_validated_sub, validate_dates
+from app.dependencies import get_validated_sub, validate_dates, get_validated_custom_sub_user
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
@@ -242,14 +242,12 @@ def user_subscription(
             conf = generate_subscription(user=user, config_format="v2ray", as_base64=True, reverse=False)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
-
-
     else:
         conf = generate_subscription(user=user, config_format="v2ray", as_base64=True, reverse=False)
         return Response(content=conf, media_type="text/plain", headers=response_headers)
 
 
-@router.get("/{token}/info", response_model=SubscriptionUserResponse)
+@router.get(f"/{XRAY_SUBSCRIPTION_PATH}/{{token}}/info", response_model=SubscriptionUserResponse)
 def user_subscription_info(
     dbuser: UserResponse = Depends(get_validated_sub),
 ):
@@ -257,7 +255,7 @@ def user_subscription_info(
     return dbuser
 
 
-@router.get("/{token}/usage")
+@router.get(f"/{XRAY_SUBSCRIPTION_PATH}/{{token}}/usage")
 def user_get_usage(
     dbuser: UserResponse = Depends(get_validated_sub),
     start: str = "",
@@ -272,7 +270,7 @@ def user_get_usage(
     return {"usages": usages, "username": dbuser.username}
 
 
-@router.get("/{token}/{client_type}")
+@router.get(f"/{XRAY_SUBSCRIPTION_PATH}/{{token}}/{{client_type}}")
 def user_subscription_with_client_type(
     request: Request,
     dbuser: UserResponse = Depends(get_validated_sub),
@@ -302,6 +300,70 @@ def user_subscription_with_client_type(
                                  reverse=config["reverse"])
 
     return Response(content=conf, media_type=config["media_type"], headers=response_headers)
+
+
+@custom_subscription_router.get("/{path}/{token}/info", response_model=SubscriptionUserResponse)
+def user_custom_subscription_info(
+    dbuser: UserResponse = Depends(get_validated_custom_sub_user),
+):
+    """Retrieves detailed information about the user's custom subscription."""
+    return dbuser
+
+
+@custom_subscription_router.get("/{path}/{token}/usage")
+def user_custom_get_usage(
+    path: str, # Explicitly take path and token for the dependency
+    token: str,
+    dbuser: UserResponse = Depends(get_validated_custom_sub_user),
+    start: str = "",
+    end: str = "",
+    db: Session = Depends(get_db)
+):
+    """Fetches the usage statistics for the user with a custom subscription within a specified date range."""
+    start_date, end_date = validate_dates(start, end)
+    # crud.get_user_usages expects the ORM user model, not Pydantic UserResponse
+    # We need to fetch the ORM user again, or pass username/id to crud function if possible
+    # For now, let's re-fetch for simplicity, though it's not the most efficient.
+    orm_user = crud.get_user_by_custom_path_and_token(db, path=path, token=token)
+    if not orm_user:
+        raise HTTPException(status_code=404, detail="User not found for usage query")
+
+    usages = crud.get_user_usages(db, orm_user, start_date, end_date)
+    return {"usages": usages, "username": dbuser.username}
+
+
+@custom_subscription_router.get("/{path}/{token}/{client_type}")
+def user_custom_subscription_with_client_type(
+    request: Request,
+    dbuser: UserResponse = Depends(get_validated_custom_sub_user),
+    client_type: str = Path(..., regex="sing-box|clash-meta|clash|outline|v2ray|v2ray-json"),
+    # user_agent: str = Header(default="") # Not strictly needed if client_type is explicit
+):
+    """Provides a custom subscription link based on the specified client type."""
+    user: UserResponse = UserResponse.model_validate(dbuser) # dbuser is already UserResponse
+
+    response_headers = {
+        "content-disposition": f'attachment; filename="{user.username}"',
+        "profile-web-page-url": str(request.url),
+        "support-url": SUB_SUPPORT_URL,
+        "profile-title": encode_title(SUB_PROFILE_TITLE),
+        "profile-update-interval": SUB_UPDATE_INTERVAL,
+        "subscription-userinfo": "; ".join(
+            f"{key}={val}"
+            for key, val in get_subscription_user_info(user).items()
+        )
+    }
+
+    config_params = client_config.get(client_type)
+    if not config_params:
+        raise HTTPException(status_code=400, detail=f"Invalid client type: {client_type}")
+
+    conf = generate_subscription(user=user,
+                                 config_format=config_params["config_format"],
+                                 as_base64=config_params["as_base64"],
+                                 reverse=config_params["reverse"])
+
+    return Response(content=conf, media_type=config_params["media_type"], headers=response_headers)
 
 
 # Export both routers

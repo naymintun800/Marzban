@@ -82,6 +82,34 @@ def get_validated_sub(
     return dbuser
 
 
+def get_validated_custom_sub_user(
+        path: str,
+        token: str, # This is the custom_uuid
+        db: Session = Depends(get_db)
+) -> UserResponse:
+    """Validate and retrieve a user based on custom_subscription_path and custom_uuid."""
+    # In custom subscriptions, the token IS the custom_uuid, and path is custom_subscription_path
+    # No separate payload decoding needed like in default subscriptions.
+    
+    db_user_orm = crud.get_user_by_custom_path_and_token(db, path=path, token=token)
+
+    if not db_user_orm:
+        raise HTTPException(status_code=404, detail="User not found for the given custom path and token")
+
+    # We need to ensure sub_revoked_at isn't an issue, similar to get_validated_sub
+    # However, custom subscriptions don't have a 'created_at' in the token itself to compare against.
+    # We assume if a user is found by custom_path and custom_uuid, and not revoked, it's valid.
+    # The sub_revoked_at check might need more context if custom subs can be individually revoked 
+    # in a way that invalidates older links (which isn't typical for UUID-based links).
+    # For now, let's assume if found and not globally revoked for the user, it's fine.
+    if db_user_orm.sub_revoked_at:
+         # A simple check: if sub_revoked_at is set, the subscription is considered revoked.
+         # More complex logic (e.g., comparing with a token creation time) isn't applicable here.
+        raise HTTPException(status_code=404, detail="Custom subscription revoked")
+
+    return UserResponse.model_validate(db_user_orm) # Convert ORM user to Pydantic model
+
+
 def get_validated_user(
         username: str,
         admin: Admin = Depends(Admin.get_current),
