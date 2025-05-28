@@ -78,6 +78,14 @@ class User(BaseModel):
     auto_delete_in_days: Optional[int] = Field(None, nullable=True)
     next_plan: Optional[NextPlanModel] = Field(None, nullable=True)
 
+    @field_validator('custom_subscription_path')
+    def validate_custom_subscription_path(cls, v):
+        if v and v.lower() == XRAY_SUBSCRIPTION_PATH.lower():
+            raise ValueError(f"Custom subscription path cannot be '{XRAY_SUBSCRIPTION_PATH}'.")
+        if v and v.lower() in {p.lower() for p in ['api', 'dashboard', 'statics', 'docs', 'redoc', 'openapi.json']}:
+            raise ValueError(f"Custom subscription path cannot be a reserved system path.")
+        return v
+
     @field_validator('data_limit', mode='before')
     def cast_to_int(cls, v):
         if v is None:  # Allow None values

@@ -24,7 +24,7 @@ from config import (
 )
 
 # Reserved paths that should not be treated as subscription paths
-RESERVED_PATHS = {'api', 'dashboard', 'statics', 'docs', 'redoc', 'openapi.json'}
+RESERVED_PATHS = {'api', 'dashboard', 'statics', 'docs', 'redoc', 'openapi.json', XRAY_SUBSCRIPTION_PATH.lower()}
 
 client_config = {
     "clash-meta": {"config_format": "clash-meta", "media_type": "text/yaml", "as_base64": False, "reverse": False},
