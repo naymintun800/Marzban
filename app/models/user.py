@@ -333,7 +333,8 @@ class UserResponse(User):
             else:
                 # Generate default token
                 token = create_subscription_token(self.username)
-
+            
+            # Original logic for URL construction
             self.subscription_url = f"{url_prefix}/{path}/{token}"
         return self
 

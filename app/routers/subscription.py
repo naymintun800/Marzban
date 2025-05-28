@@ -39,7 +39,7 @@ client_config = {
 router = APIRouter(tags=['Subscription'])
 
 # Create a separate router for custom subscription paths
-custom_subscription_router = APIRouter()
+custom_subscription_router = APIRouter(tags=['Subscription'])
 
 
 def get_subscription_user_info(user: UserResponse) -> dict:
