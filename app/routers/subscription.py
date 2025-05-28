@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Header, Path, Request, Response, HTTPExc
 from fastapi.responses import HTMLResponse
 
 from app.db import Session, crud, get_db
-from app.db.models import User
+from app.db.models import User  # Import the SQLAlchemy User model
 from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.share import encode_title, generate_subscription
