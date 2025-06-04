@@ -12,6 +12,7 @@ from app.models.proxy import ProxySettings, ProxyTypes
 from app.subscription.share import generate_v2ray_links
 from app.utils.jwt import create_subscription_token
 from config import XRAY_SUBSCRIPTION_PATH, XRAY_SUBSCRIPTION_URL_PREFIX
+from app.db import get_db
 
 USERNAME_REGEXP = re.compile(r"^(?=\w{3,32}\b)[a-zA-Z0-9-_@.]+(?:_[a-zA-Z0-9-_@.]+)*$")
 
@@ -310,9 +311,15 @@ class UserResponse(User):
     @model_validator(mode="after")
     def validate_links(self):
         if not self.links:
-            self.links = generate_v2ray_links(
-                self.proxies, self.inbounds, extra_data=self.model_dump(), reverse=False,
-            )
+            with get_db() as db:
+                self.links = generate_v2ray_links(
+                    proxies=self.proxies,
+                    inbounds=self.inbounds,
+                    extra_data=self.model_dump(),
+                    reverse=False,
+                    db=db,
+                    user=self
+                )
         return self
 
     @model_validator(mode="after")
