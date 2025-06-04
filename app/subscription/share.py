@@ -11,8 +11,6 @@ from sqlalchemy.orm import Session
 
 from app import xray
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
-from app.db import crud
-from app.db.models import LoadBalancerHost, Node as NodeDbModel
 from app.models.load_balancer import LoadBalancerStrategy
 from app.models.node import NodeStatus
 
@@ -20,6 +18,8 @@ from . import *
 
 if TYPE_CHECKING:
     from app.models.user import UserResponse
+    from app.db.models import LoadBalancerHost, Node as NodeDbModel
+    from app.db import crud as db_crud
 
 from config import (
     ACTIVE_STATUS_TEXT,
@@ -50,16 +50,16 @@ STATUS_TEXTS = {
 }
 
 
-def _select_node_from_load_balancer(lb_config: LoadBalancerHost, user_id: int, db: Session) -> Optional[NodeDbModel]:
+def _select_node_from_load_balancer(lb_config: 'LoadBalancerHost', user_id: int, db: Session) -> Optional['NodeDbModel']:
     """Selects a node from the load balancer based on its strategy."""
+    from app.db.models import NodeStatus
+
     if not lb_config.nodes:
         return None
 
-    # Filter for active and non-disabled nodes
-    # Assuming NodeDbModel has is_disabled, if not, adjust or rely on status only
     active_nodes = [
-        node for node in lb_config.nodes 
-        if node.status == NodeStatus.connected # and not getattr(node, 'is_disabled', False) # is_disabled is on ProxyHost not Node itself
+        node for node in lb_config.nodes
+        if node.status == NodeStatus.connected
     ]
 
     if not active_nodes:
@@ -75,8 +75,7 @@ def _select_node_from_load_balancer(lb_config: LoadBalancerHost, user_id: int, d
         ROUND_ROBIN_COUNTERS[counter_key] = (current_index + 1)
     elif strategy == LoadBalancerStrategy.RANDOM:
         selected_node = random.choice(active_nodes)
-    # Add other strategies here if needed (e.g., LEAST_CONNECTIONS)
-    else: # Default to RANDOM if strategy is unknown or not implemented
+    else:
         selected_node = random.choice(active_nodes)
         
     return selected_node
@@ -286,6 +285,9 @@ def process_inbounds_and_tags(
         db: Session,
         user: "UserResponse"
 ) -> Union[List, str]:
+    from app.db import crud
+    from app.db.models import LoadBalancerHost
+
     _inbounds = []
     for protocol, tags in inbounds.items():
         for tag in tags:
