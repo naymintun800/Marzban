@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from app.db import crud
-from app.db.session import get_db
+from app.db.models import LoadBalancerHost as LoadBalancerHostDbModel
+from app.db.models import Node as NodeDbModel  # Assuming Node model might be needed
+from app.db import get_db
 from app.models.admin import Admin
 from app.models.load_balancer import (
     LoadBalancerHostCreate,
