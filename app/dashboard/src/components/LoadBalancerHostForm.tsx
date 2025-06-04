@@ -236,7 +236,7 @@ const LoadBalancerHostForm: React.FC<LoadBalancerHostFormProps> = ({
               <Input 
                 placeholder="Node names, comma-separated (e.g., node1,node2)" 
                 value={selectedNodes.join(',')} 
-                onChange={(e) => setSelectedNodes(e.target.value.split(',').map(s => s.trim()).filter(Boolean))} 
+                onChange={(e) => setSelectedNodes(e.target.value.split(',').map(s => s.trim()))} 
               />
             </FormControl>
 
