@@ -29,15 +29,12 @@ class LoadBalancerHostBase(BaseModel):
     noise_setting: Optional[str] = Field(None)
     random_user_agent: Optional[bool] = Field(default=False)
     use_sni_as_host: Optional[bool] = Field(default=False)
-
     inbound_tag: str = Field(..., examples=["vless-tcp-xtls-0"])
     load_balancing_strategy: LoadBalancerStrategy = LoadBalancerStrategy.ROUND_ROBIN
-    node_ids: List[int] = Field(..., examples=[[1, 2]])
-
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra='ignore')
 
 class LoadBalancerHostCreate(LoadBalancerHostBase):
-    pass
+    node_ids: List[int] = Field(..., examples=[[1, 2]])
 
 class LoadBalancerHostUpdate(BaseModel):
     name: Optional[str] = None
@@ -57,7 +54,6 @@ class LoadBalancerHostUpdate(BaseModel):
     noise_setting: Optional[str] = None
     random_user_agent: Optional[bool] = None
     use_sni_as_host: Optional[bool] = None
-
     inbound_tag: Optional[str] = None
     load_balancing_strategy: Optional[LoadBalancerStrategy] = None
     node_ids: Optional[List[int]] = None
@@ -65,5 +61,7 @@ class LoadBalancerHostUpdate(BaseModel):
 class LoadBalancerHostResponse(LoadBalancerHostBase):
     id: int
     nodes: List[NodeResponse] # Show full node details
-    # node_ids is inherited from LoadBalancerHostBase
+    node_ids: List[int]     # This field will be populated from the ORM's 'LoadBalancerHost.node_ids' property
+                            # because 'from_attributes=True' is active (inherited).
+
     # model_config is inherited 
