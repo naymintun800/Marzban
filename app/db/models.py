@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from typing import List
 
 from sqlalchemy import (
     JSON,
@@ -424,5 +425,9 @@ class LoadBalancerHost(Base):
     )
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def node_ids(self) -> List[int]:
+        return [node.id for node in self.nodes] if self.nodes else []
 
     __table_args__ = (UniqueConstraint('address', 'port', 'inbound_tag', 'sni', name='_lb_host_uc'),)
