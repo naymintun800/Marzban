@@ -28,6 +28,8 @@ from app.db.models import (
     User,
     UserTemplate,
     UserUsageResetLogs,
+    LoadBalancerHost,
+    loadbalancer_nodes_association,
 )
 from app.models.admin import AdminCreate, AdminModify, AdminPartialModify
 from app.models.node import NodeCreate, NodeModify, NodeStatus, NodeUsageResponse
@@ -42,6 +44,7 @@ from app.models.user import (
     UserUsageResponse,
 )
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
+from app.models.load_balancer import LoadBalancerHostCreate, LoadBalancerHostUpdate
 from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
 from config import NOTIFY_DAYS_LEFT, NOTIFY_REACHED_USAGE_PERCENT, USERS_AUTODELETE_DAYS
 
@@ -1527,3 +1530,95 @@ def get_user_node_usages_by_node_id(db: Session, user_id: int, node_id: int) -> 
     # This function is mentioned in the original file but not implemented in the rewritten file
     # It's left unchanged as it's mentioned in the original file
     pass
+
+
+# --- LoadBalancerHost CRUD Operations ---
+
+def create_load_balancer_host(db: Session, lb_host_create: LoadBalancerHostCreate) -> LoadBalancerHost:
+    nodes = []
+    if lb_host_create.node_ids:
+        nodes = db.query(Node).filter(Node.id.in_(lb_host_create.node_ids)).all()
+        if len(nodes) != len(lb_host_create.node_ids):
+            # Handle error: some node_ids not found, or raise exception
+            pass # For now, just proceed with found nodes
+
+    # Ensure inbound exists
+    get_or_create_inbound(db, lb_host_create.inbound_tag)
+
+    db_lb_host = LoadBalancerHost(
+        name=lb_host_create.name,
+        remark_template=lb_host_create.remark_template,
+        address=lb_host_create.address,
+        port=lb_host_create.port,
+        path=lb_host_create.path,
+        sni=lb_host_create.sni,
+        host_header=lb_host_create.host_header,
+        security=lb_host_create.security,
+        alpn=lb_host_create.alpn,
+        fingerprint=lb_host_create.fingerprint,
+        allowinsecure=lb_host_create.allowinsecure,
+        is_disabled=lb_host_create.is_disabled,
+        mux_enable=lb_host_create.mux_enable,
+        fragment_setting=lb_host_create.fragment_setting,
+        noise_setting=lb_host_create.noise_setting,
+        random_user_agent=lb_host_create.random_user_agent,
+        use_sni_as_host=lb_host_create.use_sni_as_host,
+        inbound_tag=lb_host_create.inbound_tag,
+        load_balancing_strategy=lb_host_create.load_balancing_strategy,
+        nodes=nodes
+    )
+    db.add(db_lb_host)
+    db.commit()
+    db.refresh(db_lb_host)
+    return db_lb_host
+
+def get_load_balancer_host(db: Session, lb_host_id: int) -> Optional[LoadBalancerHost]:
+    return db.query(LoadBalancerHost).options(joinedload(LoadBalancerHost.nodes)).filter(LoadBalancerHost.id == lb_host_id).first()
+
+def get_load_balancer_host_by_name(db: Session, name: str) -> Optional[LoadBalancerHost]:
+    return db.query(LoadBalancerHost).options(joinedload(LoadBalancerHost.nodes)).filter(LoadBalancerHost.name == name).first()
+
+def get_load_balancer_hosts_for_inbound(db: Session, inbound_tag: str) -> List[LoadBalancerHost]:
+    return db.query(LoadBalancerHost).options(joinedload(LoadBalancerHost.nodes)).filter(LoadBalancerHost.inbound_tag == inbound_tag).all()
+
+def get_all_load_balancer_hosts(db: Session, skip: int = 0, limit: int = 100) -> List[LoadBalancerHost]:
+    return db.query(LoadBalancerHost).options(joinedload(LoadBalancerHost.nodes)).offset(skip).limit(limit).all()
+
+def update_load_balancer_host(db: Session, lb_host_id: int, lb_host_update: LoadBalancerHostUpdate) -> Optional[LoadBalancerHost]:
+    db_lb_host = get_load_balancer_host(db, lb_host_id)
+    if not db_lb_host:
+        return None
+
+    update_data = lb_host_update.model_dump(exclude_unset=True)
+
+    if "node_ids" in update_data:
+        node_ids = update_data.pop("node_ids")
+        if node_ids is not None:
+            nodes = db.query(Node).filter(Node.id.in_(node_ids)).all()
+            # Basic check, consider raising error if not all found
+            # if len(nodes) != len(node_ids): 
+            #     pass 
+            db_lb_host.nodes = nodes
+        else: # Explicitly setting to empty list
+            db_lb_host.nodes = []
+    
+    if "inbound_tag" in update_data and update_data["inbound_tag"] != db_lb_host.inbound_tag:
+        get_or_create_inbound(db, update_data["inbound_tag"]) # Ensure new inbound exists
+
+    for field, value in update_data.items():
+        setattr(db_lb_host, field, value)
+
+    db_lb_host.updated_at = datetime.utcnow()
+    db.add(db_lb_host)
+    db.commit()
+    db.refresh(db_lb_host)
+    return db_lb_host
+
+def delete_load_balancer_host(db: Session, lb_host_id: int) -> Optional[LoadBalancerHost]:
+    db_lb_host = get_load_balancer_host(db, lb_host_id)
+    if db_lb_host:
+        db.delete(db_lb_host)
+        db.commit()
+    return db_lb_host
+
+# --- End LoadBalancerHost CRUD Operations ---
