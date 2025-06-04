@@ -20,7 +20,7 @@ export enum ProxyHostSecurity {
 }
 
 export enum ProxyHostALPN {
-    NONE = "none",
+    NONE = "",
     HTTP_1_1 = "http/1.1",
     H2 = "h2",
     H2_HTTP_1_1 = "h2,http/1.1",
@@ -29,7 +29,7 @@ export enum ProxyHostALPN {
 }
 
 export enum ProxyHostFingerprint {
-    NONE = "none",
+    NONE = "",
     CHROME = "chrome",
     FIREFOX = "firefox",
     SAFARI = "safari",
