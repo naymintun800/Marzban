@@ -59,7 +59,7 @@ def get_all_load_balancer_hosts(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_admin: Admin = Depends(Admin.get_current_admin),
+    current_admin: Admin = Depends(Admin.get_current),
 ):
     """Retrieve all Load Balancer Hosts."""
     return crud.get_all_load_balancer_hosts(db=db, skip=skip, limit=limit)
@@ -69,7 +69,7 @@ def get_all_load_balancer_hosts(
 def get_load_balancer_host(
     lb_host_id: int,
     db: Session = Depends(get_db),
-    current_admin: Admin = Depends(Admin.get_current_admin),
+    current_admin: Admin = Depends(Admin.get_current),
 ):
     """Retrieve a specific Load Balancer Host by ID."""
     db_lb_host = crud.get_load_balancer_host(db=db, lb_host_id=lb_host_id)
