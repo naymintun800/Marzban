@@ -21,8 +21,8 @@ import {
     Text,
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
-import { useLoadBalancerHosts, useDeleteLoadBalancerHost } from '../../hooks/useLoadBalancerHosts'; // Adjust path if hooks are elsewhere
-import { LoadBalancerHostResponse } from '../../types/loadBalancer'; // Adjust path if types are elsewhere
+import { useLoadBalancerHosts, useDeleteLoadBalancerHost } from '../hooks/useLoadBalancerHosts'; // Corrected path
+import { LoadBalancerHostResponse } from '../types/loadBalancer'; // Corrected path
 import { Link as RouterLink } from 'react-router-dom'; // Assuming you use React Router for navigation
 
 const LoadBalancerHostsPage: React.FC = () => {

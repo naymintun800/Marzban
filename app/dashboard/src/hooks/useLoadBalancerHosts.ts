@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from 'react-query';
 import * as loadBalancerServices from '../services/loadBalancerHosts'; // Assuming services are here
 import {
     LoadBalancerHostCreate,
@@ -45,7 +45,7 @@ export const useCreateLoadBalancerHost = (): UseMutationResult<
     LoadBalancerHostResponse,
     AxiosError<ApiError>,
     LoadBalancerHostCreate,
-    unknown // Context type, if needed for optimistic updates
+    unknown // React Query v3 often uses 'unknown' or specific context type here
 > => {
     const queryClient = useQueryClient();
     const toast = useToast();
