@@ -36,6 +36,7 @@
   "expires": "پایان در {{time}}",
   "header.donation": "کمک مالی",
   "header.hostSettings": "تنظیمات هاست",
+  "header.loadBalancerHosts": "Load Balancer Hosts",
   "header.logout": "خروج",
   "header.nodeSettings": "تنظیمات گره‌ها",
   "header.nodesUsage": "نمودار گره‌ها",

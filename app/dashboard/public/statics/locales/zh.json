@@ -31,6 +31,7 @@
   "expires": "{{time}}有效",
   "header.donation": "捐赠",
   "header.hostSettings": "设置",
+  "header.loadBalancerHosts": "Load Balancer Hosts",
   "header.logout": "退出",
   "header.nodeSettings": "节点设置",
   "header.nodesUsage": "节点统计",

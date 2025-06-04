@@ -147,6 +147,15 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
               {isSudo() && (
                 <>
                   <MenuItem
+                    as={Link}
+                    to="/load-balancer-hosts/"
+                    maxW="170px"
+                    fontSize="sm"
+                    icon={<NodesIcon />}
+                  >
+                    {t("header.loadBalancerHosts")}
+                  </MenuItem>
+                  <MenuItem
                     maxW="170px"
                     fontSize="sm"
                     icon={<HostsIcon />}
