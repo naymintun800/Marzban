@@ -1,4 +1,4 @@
-import { $fetch as apiClient } from "../service/http"; // Corrected import path and aliased $fetch
+import { fetch as apiClient } from "../service/http"; // Changed import from $fetch to fetch
 import {
     LoadBalancerHostCreate,
     LoadBalancerHostUpdate,
