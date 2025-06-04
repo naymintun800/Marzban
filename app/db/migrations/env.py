@@ -6,8 +6,17 @@ from sqlalchemy import pool
 from alembic import context
 
 # Ensure all models are imported so Base.metadata is populated
-from app.db import models  # noqa
-from app.db.base import Base
+import app.db.models # Import the models module
+from app.db.base import Base # Import your Base
+
+# Explicitly iterate over models to ensure they are registered with Base.metadata
+# This can help in complex setups or with circular dependencies.
+for name in dir(app.db.models):
+    attr = getattr(app.db.models, name)
+    if isinstance(attr, type) and issubclass(attr, Base) and attr is not Base:
+        # This line just accesses the attribute to ensure it's processed by Python's import machinery
+        pass
+
 from config import SQLALCHEMY_DATABASE_URL
 
 # this is the Alembic Config object, which provides
@@ -24,6 +33,10 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
+
+# DEBUG: Print the keys of the tables registered with Base.metadata
+print(f"DEBUG [Alembic env.py]: Tables in Base.metadata before autogenerate: {Base.metadata.tables.keys()}")
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
