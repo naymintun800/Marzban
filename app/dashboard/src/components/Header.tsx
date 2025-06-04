@@ -99,6 +99,7 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
     onEditingNodes,
     onShowingNodesUsage,
     onImportHiddifyUsers,
+    onManagingLoadBalancerHosts,
   } = useDashboard();
   const { t } = useTranslation();
   const { colorMode, toggleColorMode } = useColorMode();
@@ -147,8 +148,7 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
               {isSudo() && (
                 <>
                   <MenuItem
-                    as={Link}
-                    to="/load-balancer-hosts/"
+                    onClick={() => onManagingLoadBalancerHosts(true)}
                     maxW="170px"
                     fontSize="sm"
                     icon={<NodesIcon />}

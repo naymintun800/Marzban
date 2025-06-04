@@ -51,6 +51,7 @@ type DashboardStateType = {
   revokeSubscriptionUser: User | null;
   isEditingCore: boolean;
   isImportingHiddifyUsers: boolean;
+  isManagingLoadBalancerHosts: boolean;
   onCreateUser: (isOpen: boolean) => void;
   onEditingUser: (user: User | null) => void;
   onDeletingUser: (user: User | null) => void;
@@ -70,6 +71,7 @@ type DashboardStateType = {
   resetDataUsage: (user: User) => Promise<void>;
   revokeSubscription: (user: User) => Promise<void>;
   onImportHiddifyUsers: (isImporting: boolean) => void;
+  onManagingLoadBalancerHosts: (isManaging: boolean) => void;
 };
 
 const fetchUsers = (query: FilterType): Promise<User[]> => {
@@ -119,6 +121,7 @@ export const useDashboard = create(
     resetUsageUser: null,
     revokeSubscriptionUser: null,
     isImportingHiddifyUsers: false,
+    isManagingLoadBalancerHosts: false,
     filters: {
       username: "",
       limit: getUsersPerPageLimitSize(),
@@ -197,6 +200,7 @@ export const useDashboard = create(
     onShowingNodesUsage: (isShowingNodesUsage: boolean) => {
       set({ isShowingNodesUsage });
     },
+    onManagingLoadBalancerHosts: (isManagingLoadBalancerHosts) => set({ isManagingLoadBalancerHosts }),
     setSubLink: (subscribeUrl) => {
       set({ subscribeUrl });
     },
