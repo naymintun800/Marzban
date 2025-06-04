@@ -15,10 +15,11 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql.expression import select, text
+from sqlalchemy.sql.expression import select
 
 from app import xray
 from app.db.base import Base
@@ -32,6 +33,29 @@ from app.models.proxy import (
 from app.models.user import ReminderType, UserDataLimitResetStrategy, UserStatus
 from app.models.load_balancer import LoadBalancerStrategy
 
+
+# Define association tables first if they are used by models defined below
+excluded_inbounds_association = Table(
+    "exclude_inbounds_association",
+    Base.metadata,
+    Column("proxy_id", ForeignKey("proxies.id")),
+    Column("inbound_tag", ForeignKey("inbounds.tag")),
+)
+
+template_inbounds_association = Table(
+    "template_inbounds_association",
+    Base.metadata,
+    Column("user_template_id", ForeignKey("user_templates.id")),
+    Column("inbound_tag", ForeignKey("inbounds.tag")),
+)
+
+# Define loadbalancer_nodes_association before Node and LoadBalancerHost models
+loadbalancer_nodes_association = Table(
+    "loadbalancer_nodes_association",
+    Base.metadata,
+    Column("load_balancer_host_id", ForeignKey("load_balancer_hosts.id"), primary_key=True),
+    Column("node_id", ForeignKey("nodes.id"), primary_key=True),
+)
 
 class Admin(Base):
     __tablename__ = "admins"
@@ -148,21 +172,6 @@ class User(Base):
                     _[proxy.type].append(inbound["tag"])
 
         return _
-
-
-excluded_inbounds_association = Table(
-    "exclude_inbounds_association",
-    Base.metadata,
-    Column("proxy_id", ForeignKey("proxies.id")),
-    Column("inbound_tag", ForeignKey("inbounds.tag")),
-)
-
-template_inbounds_association = Table(
-    "template_inbounds_association",
-    Base.metadata,
-    Column("user_template_id", ForeignKey("user_templates.id")),
-    Column("inbound_tag", ForeignKey("inbounds.tag")),
-)
 
 
 class NextPlan(Base):
@@ -316,7 +325,7 @@ class Node(Base):
     usage_coefficient = Column(Float, nullable=False, server_default=text("1.0"), default=1)
     load_balancers = relationship(
         "LoadBalancerHost",
-        secondary=loadbalancer_nodes_association,
+        secondary="loadbalancer_nodes_association",
         back_populates="nodes"
     )
 
@@ -360,14 +369,6 @@ class NotificationReminder(Base):
     threshold = Column(Integer, nullable=True)
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-
-loadbalancer_nodes_association = Table(
-    "loadbalancer_nodes_association",
-    Base.metadata,
-    Column("load_balancer_host_id", ForeignKey("load_balancer_hosts.id"), primary_key=True),
-    Column("node_id", ForeignKey("nodes.id"), primary_key=True),
-)
 
 
 class LoadBalancerHost(Base):
@@ -418,8 +419,8 @@ class LoadBalancerHost(Base):
 
     nodes = relationship(
         "Node",
-        secondary=loadbalancer_nodes_association,
-        back_populates="load_balancers" # Will add this to Node model later
+        secondary="loadbalancer_nodes_association",
+        back_populates="load_balancers"
     )
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
