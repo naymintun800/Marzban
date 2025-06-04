@@ -26,7 +26,7 @@ router = APIRouter(
 )
 
 
-def add_host_if_needed(new_node: NodeCreate, db: Session):
+def add_host_if_needed(new_node: NodeCreate, node_id: int, db: Session):
     """Add a host if specified in the new node settings."""
     if new_node.add_as_new_host:
         host = ProxyHost(
@@ -34,7 +34,7 @@ def add_host_if_needed(new_node: NodeCreate, db: Session):
             address=new_node.address,
         )
         for inbound_tag in xray.config.inbounds_by_tag:
-            crud.add_host(db, inbound_tag, host)
+            crud.add_host(db, inbound_tag, host, node_id=node_id)
         xray.hosts.update()
 
 
@@ -64,7 +64,7 @@ def add_node(
         )
 
     bg.add_task(xray.operations.connect_node, node_id=dbnode.id)
-    bg.add_task(add_host_if_needed, new_node, db)
+    bg.add_task(add_host_if_needed, new_node, dbnode.id, db)
 
     logger.info(f'New node "{dbnode.name}" added')
     return dbnode

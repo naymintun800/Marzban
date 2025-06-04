@@ -259,6 +259,8 @@ class ProxyHost(Base):
         server_default=ProxyHostSecurity.none.name
     )
 
+    node_id = Column(Integer, ForeignKey("nodes.id"), nullable=True)
+
     inbound_tag = Column(String(256), ForeignKey("inbounds.tag"), nullable=False)
     inbound = relationship("ProxyInbound", back_populates="hosts")
     allowinsecure = Column(Boolean, nullable=True)
@@ -308,6 +310,7 @@ class Node(Base):
     last_status_change = Column(DateTime, default=datetime.utcnow)
     message = Column(String(1024), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    is_public = Column(Boolean, nullable=False, default=True, server_default='1')
     uplink = Column(BigInteger, default=0)
     downlink = Column(BigInteger, default=0)
     user_usages = relationship("NodeUserUsage", back_populates="node", cascade="all, delete-orphan")

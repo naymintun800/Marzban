@@ -517,6 +517,10 @@ const NodeForm: NodeFormType = ({
             </Checkbox>
           </FormControl>
         )}
+        <FormControl py={1} display="flex" alignItems="center">
+          <Switch id="is_public" {...form.register("is_public")}/>
+          <FormLabel htmlFor="is_public" mb={0} ml={2}>{t("nodes.publicNode")}</FormLabel>
+        </FormControl>
         <HStack w="full">
           {btnLeftAdornment}
           <Button

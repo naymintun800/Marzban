@@ -21,6 +21,7 @@ class Node(BaseModel):
     address: str
     port: int = 62050
     api_port: int = 62051
+    is_public: bool = True
     usage_coefficient: float = Field(gt=0, default=1.0)
 
 
@@ -33,7 +34,8 @@ class NodeCreate(Node):
             "port": 62050,
             "api_port": 62051,
             "add_as_new_host": True,
-            "usage_coefficient": 1
+            "usage_coefficient": 1,
+            "is_public": True
         }
     })
 
@@ -45,6 +47,7 @@ class NodeModify(Node):
     api_port: Optional[int] = Field(None, nullable=True)
     status: Optional[NodeStatus] = Field(None, nullable=True)
     usage_coefficient: Optional[float] = Field(None, nullable=True)
+    is_public: Optional[bool] = Field(None, nullable=True)
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "name": "DE node",
@@ -52,7 +55,8 @@ class NodeModify(Node):
             "port": 62050,
             "api_port": 62051,
             "status": "disabled",
-            "usage_coefficient": 1.0
+            "usage_coefficient": 1.0,
+            "is_public": True
         }
     })
 

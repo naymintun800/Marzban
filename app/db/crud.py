@@ -95,7 +95,7 @@ def get_hosts(db: Session, inbound_tag: str) -> List[ProxyHost]:
     return inbound.hosts
 
 
-def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[ProxyHost]:
+def add_host(db: Session, inbound_tag: str, host: ProxyHostModify, node_id: int | None = None) -> List[ProxyHost]:
     """
     Adds a new host to a proxy inbound.
 
@@ -119,7 +119,8 @@ def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[Proxy
             inbound=inbound,
             security=host.security,
             alpn=host.alpn,
-            fingerprint=host.fingerprint
+            fingerprint=host.fingerprint,
+            node_id=node_id
         )
     )
     db.commit()
@@ -127,7 +128,7 @@ def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[Proxy
     return inbound.hosts
 
 
-def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostModify]) -> List[ProxyHost]:
+def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostModify], node_id: int | None = None) -> List[ProxyHost]:
     """
     Updates hosts for a given inbound tag.
 
@@ -159,6 +160,7 @@ def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostMo
             noise_setting=host.noise_setting,
             random_user_agent=host.random_user_agent,
             use_sni_as_host=host.use_sni_as_host,
+            node_id=node_id,
         ) for host in modified_hosts
     ]
     db.commit()
@@ -1330,7 +1332,8 @@ def create_node(db: Session, node: NodeCreate) -> Node:
     dbnode = Node(name=node.name,
                   address=node.address,
                   port=node.port,
-                  api_port=node.api_port)
+                  api_port=node.api_port,
+                  is_public=node.is_public)
 
     db.add(dbnode)
     db.commit()
@@ -1387,6 +1390,9 @@ def update_node(db: Session, dbnode: Node, modify: NodeModify) -> Node:
 
     if modify.usage_coefficient:
         dbnode.usage_coefficient = modify.usage_coefficient
+
+    if modify.is_public is not None:
+        dbnode.is_public = modify.is_public
 
     db.commit()
     db.refresh(dbnode)
