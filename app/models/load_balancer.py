@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, computed_field
 from app.models.node import NodeResponse # For embedding node details in response
 from app.models.proxy import ProxyHostSecurity, ProxyHostALPN, ProxyHostFingerprint # For defaults and types
 
@@ -65,4 +65,11 @@ class LoadBalancerHostUpdate(BaseModel):
 class LoadBalancerHostResponse(LoadBalancerHostBase):
     id: int
     nodes: List[NodeResponse] # Show full node details
-    model_config = ConfigDict(from_attributes=True) 
+    model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def node_ids(self) -> List[int]:
+        # This provides the 'node_ids' field required by LoadBalancerHostBase,
+        # deriving it from the 'nodes' attribute which is populated from the ORM.
+        return [node.id for node in self.nodes] if self.nodes else [] 
