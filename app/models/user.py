@@ -291,6 +291,7 @@ class UserModify(User):
 
 
 class UserResponse(User):
+    id: int
     username: str
     status: UserStatus
     used_traffic: int
