@@ -15,7 +15,6 @@ import { RevokeSubscriptionModal } from "components/RevokeSubscriptionModal";
 import { UserDialog } from "components/UserDialog";
 import { UsersTable } from "components/UsersTable";
 import LoadBalancerHostsModal from "components/LoadBalancerHostsModal";
-import LoadBalancerHostFormModal from "components/LoadBalancerHostFormModal";
 import { fetchInbounds, useDashboard } from "contexts/DashboardContext";
 import { FC, useEffect } from "react";
 import { Statistics } from "../components/Statistics";
@@ -55,7 +54,6 @@ export const Dashboard: FC = () => {
             onClose={() => onManagingLoadBalancerHosts(false)}
           />
         )}
-        <LoadBalancerHostFormModal />
       </Box>
       <Footer />
     </VStack>
