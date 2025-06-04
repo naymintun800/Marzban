@@ -1,6 +1,7 @@
 import { StatisticsQueryKey } from "components/Statistics";
 import { fetch } from "service/http";
 import { User, UserCreate } from "types/User";
+import { LoadBalancerHostResponse } from "../types/loadBalancer";
 import { queryClient } from "utils/react-query";
 import { getUsersPerPageLimitSize } from "utils/userPreferenceStorage";
 import { create } from "zustand";
@@ -52,6 +53,7 @@ type DashboardStateType = {
   isEditingCore: boolean;
   isImportingHiddifyUsers: boolean;
   isManagingLoadBalancerHosts: boolean;
+  editingLoadBalancerHostData: LoadBalancerHostResponse | 'new' | null;
   onCreateUser: (isOpen: boolean) => void;
   onEditingUser: (user: User | null) => void;
   onDeletingUser: (user: User | null) => void;
@@ -72,6 +74,7 @@ type DashboardStateType = {
   revokeSubscription: (user: User) => Promise<void>;
   onImportHiddifyUsers: (isImporting: boolean) => void;
   onManagingLoadBalancerHosts: (isManaging: boolean) => void;
+  onOpenLoadBalancerHostForm: (data: LoadBalancerHostResponse | 'new' | null) => void;
 };
 
 const fetchUsers = (query: FilterType): Promise<User[]> => {
@@ -122,6 +125,7 @@ export const useDashboard = create(
     revokeSubscriptionUser: null,
     isImportingHiddifyUsers: false,
     isManagingLoadBalancerHosts: false,
+    editingLoadBalancerHostData: null,
     filters: {
       username: "",
       limit: getUsersPerPageLimitSize(),
@@ -201,6 +205,7 @@ export const useDashboard = create(
       set({ isShowingNodesUsage });
     },
     onManagingLoadBalancerHosts: (isManagingLoadBalancerHosts) => set({ isManagingLoadBalancerHosts }),
+    onOpenLoadBalancerHostForm: (data) => set({ editingLoadBalancerHostData: data }),
     setSubLink: (subscribeUrl) => {
       set({ subscribeUrl });
     },

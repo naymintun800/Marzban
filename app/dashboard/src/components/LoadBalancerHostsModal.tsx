@@ -30,7 +30,7 @@ import {
 import { AddIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
 import { useLoadBalancerHosts, useDeleteLoadBalancerHost } from '../hooks/useLoadBalancerHosts';
 import { LoadBalancerHostResponse } from '../types/loadBalancer';
-// RouterLink is removed as Add/Edit will need to trigger nested modals or inline forms
+import { useDashboard } from '../contexts/DashboardContext';
 
 interface LoadBalancerHostsModalProps {
     isOpen: boolean;
@@ -40,25 +40,24 @@ interface LoadBalancerHostsModalProps {
 const LoadBalancerHostsModal: React.FC<LoadBalancerHostsModalProps> = ({ isOpen, onClose }) => {
     const { data: lbHosts, isLoading, error, refetch } = useLoadBalancerHosts();
     const deleteMutation = useDeleteLoadBalancerHost();
+    const { onOpenLoadBalancerHostForm } = useDashboard();
 
     const handleDelete = (id: number) => {
         if (window.confirm('Are you sure you want to delete this load balancer host?')) {
             deleteMutation.mutate(id, {
                 onSuccess: () => {
-                    refetch(); // Refetch data after successful deletion
+                    refetch();
                 }
             });
         }
     };
 
-    // TODO: Implement Add/Edit functionality, likely by opening another modal or inline form.
-    // For now, the buttons might be placeholders or disabled.
     const handleAdd = () => {
-        alert('Add Load Balancer Host functionality to be implemented in modal.');
+        onOpenLoadBalancerHostForm('new');
     };
 
     const handleEdit = (lbHost: LoadBalancerHostResponse) => {
-        alert(`Edit Load Balancer Host (ID: ${lbHost.id}) functionality to be implemented in modal.`);
+        onOpenLoadBalancerHostForm(lbHost);
     };
 
     return (
