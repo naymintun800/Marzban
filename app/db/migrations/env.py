@@ -5,6 +5,8 @@ from sqlalchemy import pool
 
 from alembic import context
 
+# Ensure all models are imported so Base.metadata is populated
+from app.db import models  # noqa
 from app.db.base import Base
 from config import SQLALCHEMY_DATABASE_URL
 
