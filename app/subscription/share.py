@@ -49,8 +49,58 @@ STATUS_TEXTS = {
 }
 
 
-# DEPRECATED: Load balancer functionality has been replaced with Resilient Node Groups
-# This function is kept for backward compatibility but should not be used
+def _select_node_by_strategy(active_nodes: list, strategy_hint: str, user_id: int):
+    """
+    Select a node from active nodes based on the client strategy hint.
+
+    Args:
+        active_nodes: List of active nodes
+        strategy_hint: Client strategy hint from resilient node group
+        user_id: User ID for consistent selection
+
+    Returns:
+        Selected node
+    """
+    from app.models.resilient_node_group import ClientStrategyHint
+
+    if not active_nodes:
+        return None
+
+    if len(active_nodes) == 1:
+        return active_nodes[0]
+
+    # Convert string to enum if needed
+    if isinstance(strategy_hint, str):
+        try:
+            strategy = ClientStrategyHint(strategy_hint)
+        except ValueError:
+            strategy = ClientStrategyHint.CLIENT_DEFAULT
+    else:
+        strategy = strategy_hint
+
+    if strategy == ClientStrategyHint.URL_TEST:
+        # URL_TEST: Hint that client should test speed and pick fastest
+        # Server-side: Give consistent node per user (client may override)
+        return active_nodes[user_id % len(active_nodes)]
+
+    elif strategy == ClientStrategyHint.FALLBACK:
+        # FALLBACK: Hint that client should use primary/backup approach
+        # Server-side: Always return first node (primary)
+        return active_nodes[0]
+
+    elif strategy == ClientStrategyHint.LOAD_BALANCE:
+        # LOAD_BALANCE: Distribute users evenly across nodes
+        # Server-side: Round-robin distribution based on user ID
+        return active_nodes[user_id % len(active_nodes)]
+
+    elif strategy == ClientStrategyHint.CLIENT_DEFAULT:
+        # CLIENT_DEFAULT: Let client use its default behavior
+        # Server-side: Consistent selection per user
+        return active_nodes[user_id % len(active_nodes)]
+
+    else:  # NONE or unknown
+        # No strategy hint - random selection each time
+        return random.choice(active_nodes)
 
 
 def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool, db: Session, user: "UserResponse") -> list:
@@ -294,8 +344,12 @@ def process_inbounds_and_tags(
                         # Filter active nodes
                         active_nodes = [node for node in resilient_group.nodes if node.status == NodeStatus.connected]
                         if active_nodes:
-                            # Select node based on strategy hint (for now, use random)
-                            selected_node = random.choice(active_nodes)
+                            # Select node based on strategy hint
+                            selected_node = _select_node_by_strategy(
+                                active_nodes,
+                                resilient_group.client_strategy_hint,
+                                user.id
+                            )
                             # Use the selected node's address instead of host address
                             node_address = selected_node.address
                         else:
