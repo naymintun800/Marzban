@@ -1338,7 +1338,6 @@ def create_node(db: Session, node: NodeCreate) -> Node:
     """
     dbnode = Node(name=node.name,
                   address=node.address,
-                  client_address=node.client_address or node.address,  # Default to management address if not provided
                   port=node.port,
                   api_port=node.api_port,
                   usage_coefficient=node.usage_coefficient)
@@ -1382,9 +1381,6 @@ def update_node(db: Session, dbnode: Node, modify: NodeModify) -> Node:
 
     if modify.address is not None:
         dbnode.address = modify.address
-
-    if modify.client_address is not None:
-        dbnode.client_address = modify.client_address
 
     if modify.port is not None:
         dbnode.port = modify.port

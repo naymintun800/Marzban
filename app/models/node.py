@@ -18,8 +18,7 @@ class NodeSettings(BaseModel):
 
 class Node(BaseModel):
     name: str
-    address: str  # Management address for API communication
-    client_address: Optional[str] = Field(None, description="Client-facing address (domain/IP for user connections)")
+    address: str  # Address for both API and client connections (can be domain or IP)
     port: int = 62050
     api_port: int = 62051
     usage_coefficient: float = Field(gt=0, default=1.0)
@@ -42,7 +41,6 @@ class NodeCreate(Node):
 class NodeModify(Node):
     name: Optional[str] = Field(None, nullable=True)
     address: Optional[str] = Field(None, nullable=True)
-    client_address: Optional[str] = Field(None, nullable=True)
     port: Optional[int] = Field(None, nullable=True)
     api_port: Optional[int] = Field(None, nullable=True)
     status: Optional[NodeStatus] = Field(None, nullable=True)
