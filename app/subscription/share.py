@@ -11,14 +11,14 @@ from sqlalchemy.orm import Session
 
 from app import xray
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
-from app.models.load_balancer import LoadBalancerStrategy
+# DEPRECATED: LoadBalancerStrategy import removed - functionality replaced with Resilient Node Groups
 from app.models.node import NodeStatus
 
 from . import *
 
 if TYPE_CHECKING:
     from app.models.user import UserResponse
-    from app.db.models import LoadBalancerHost, Node as NodeDbModel
+    from app.db.models import Node as NodeDbModel
     from app.db import crud as db_crud
 
 from config import (
@@ -31,7 +31,7 @@ from config import (
 
 SERVER_IP = get_public_ip()
 SERVER_IPV6 = get_public_ipv6()
-ROUND_ROBIN_COUNTERS = defaultdict(int)
+# DEPRECATED: ROUND_ROBIN_COUNTERS removed - functionality replaced with Resilient Node Groups
 
 STATUS_EMOJIS = {
     "active": "✅",
@@ -50,35 +50,8 @@ STATUS_TEXTS = {
 }
 
 
-def _select_node_from_load_balancer(lb_config: 'LoadBalancerHost', user_id: int, db: Session) -> Optional['NodeDbModel']:
-    """Selects a node from the load balancer based on its strategy."""
-    from app.db.models import NodeStatus
-
-    if not lb_config.nodes:
-        return None
-
-    active_nodes = [
-        node for node in lb_config.nodes
-        if node.status == NodeStatus.connected
-    ]
-
-    if not active_nodes:
-        return None
-
-    strategy = lb_config.load_balancing_strategy
-    selected_node = None
-
-    if strategy == LoadBalancerStrategy.ROUND_ROBIN:
-        counter_key = lb_config.id
-        current_index = ROUND_ROBIN_COUNTERS[counter_key]
-        selected_node = active_nodes[current_index % len(active_nodes)]
-        ROUND_ROBIN_COUNTERS[counter_key] = (current_index + 1)
-    elif strategy == LoadBalancerStrategy.RANDOM:
-        selected_node = random.choice(active_nodes)
-    else:
-        selected_node = random.choice(active_nodes)
-        
-    return selected_node
+# DEPRECATED: Load balancer functionality has been replaced with Resilient Node Groups
+# This function is kept for backward compatibility but should not be used
 
 
 def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool, db: Session, user: "UserResponse") -> list:
@@ -286,7 +259,7 @@ def process_inbounds_and_tags(
         user: "UserResponse"
 ) -> Union[List, str]:
     from app.db import crud
-    from app.db.models import LoadBalancerHost
+    # DEPRECATED: LoadBalancerHost import removed - functionality replaced with Resilient Node Groups
 
     _inbounds = []
     for protocol, tags in inbounds.items():
@@ -310,75 +283,8 @@ def process_inbounds_and_tags(
 
             format_variables.update({"TRANSPORT": inbound["network"]})
             
-            # --- Load Balancer Logic ---
-            db_load_balancers = crud.get_load_balancer_hosts_for_inbound(db, tag)
-            processed_with_lb = False
-            if db_load_balancers:
-                for lb_config in db_load_balancers:
-                    if lb_config.is_disabled:
-                        continue
-                    
-                    selected_node = _select_node_from_load_balancer(lb_config, user.id, db)
-                    if not selected_node:
-                        continue # No active node for this LB config, try next LB or static host
-                    
-                    processed_with_lb = True
-                    
-                    # Use LoadBalancerHost's own settings, falling back to inbound defaults
-                    lb_host_inbound_settings = inbound.copy() # Start with base inbound settings
-
-                    # Override with LB-specific settings
-                    # Note: LoadBalancerHost model has direct fields, not lists like ProxyHost's sni/host
-                    # The address field of LoadBalancerHost is the "virtual" address, not the node's.
-                    # The selected_node.address is what clients will connect to.
-                    
-                    current_sni = lb_config.sni if lb_config.sni is not None else inbound["sni"]
-                    final_sni = ""
-                    if isinstance(current_sni, list) and current_sni:
-                        salt = secrets.token_hex(8)
-                        final_sni = random.choice(current_sni).replace("*", salt)
-                    elif isinstance(current_sni, str):
-                        final_sni = current_sni
-
-                    current_host_header = lb_config.host_header if lb_config.host_header is not None else inbound["host"]
-                    final_host_header = ""
-                    if isinstance(current_host_header, list) and current_host_header:
-                        salt = secrets.token_hex(8)
-                        final_host_header = random.choice(current_host_header).replace("*", salt)
-                    elif isinstance(current_host_header, str):
-                        final_host_header = current_host_header
-
-                    lb_path = lb_config.path if lb_config.path is not None else inbound.get("path", "")
-                    final_path = lb_path.format_map(format_variables)
-
-                    if lb_config.use_sni_as_host and final_sni:
-                        final_host_header = final_sni
-
-                    lb_host_inbound_settings.update({
-                        "port": lb_config.port if lb_config.port is not None else inbound["port"],
-                        "sni": final_sni,
-                        "host": final_host_header,
-                        "tls": lb_config.security.value if lb_config.security != "inbound_default" else inbound["tls"], # Assuming ProxyHostSecurity enum
-                        "alpn": lb_config.alpn.value if lb_config.alpn != "none" else (inbound.get("alpn") if inbound.get("alpn") else None), # Assuming ProxyHostALPN enum
-                        "path": final_path,
-                        "fp": lb_config.fingerprint.value if lb_config.fingerprint != "none" else inbound.get("fp", ""), # Assuming ProxyHostFingerprint enum
-                        "ais": lb_config.allowinsecure if lb_config.allowinsecure is not None else inbound.get("allowinsecure", False),
-                        "mux_enable": lb_config.mux_enable if lb_config.mux_enable is not None else inbound.get("mux_enable", False),
-                        "fragment_setting": lb_config.fragment_setting if lb_config.fragment_setting is not None else inbound.get("fragment_setting"),
-                        "noise_setting": lb_config.noise_setting if lb_config.noise_setting is not None else inbound.get("noise_setting"),
-                        "random_user_agent": lb_config.random_user_agent if lb_config.random_user_agent is not None else inbound.get("random_user_agent", False),
-                    })
-
-                    conf.add(
-                        remark=lb_config.remark_template.format_map(format_variables),
-                        address=selected_node.address.format_map(format_variables), # Node's actual address
-                        inbound=lb_host_inbound_settings,
-                        settings=settings.model_dump()
-                    )
-                
-                if processed_with_lb:
-                    continue # Move to the next tag if LBs were processed for this one
-            # --- End Load Balancer Logic ---
+            # DEPRECATED: Load Balancer Logic has been removed
+            # Resilient Node Groups functionality will be implemented here in the future
 
             # Original ProxyHost logic (if no LB or no active LBs for this tag)
             host_inbound = inbound.copy()

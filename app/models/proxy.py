@@ -155,6 +155,8 @@ class ProxyHost(BaseModel):
     noise_setting: Optional[str] = Field(None, nullable=True)
     random_user_agent: Union[bool, None] = None
     use_sni_as_host: Union[bool, None] = None
+    resilient_node_group_id: Optional[int] = Field(None, nullable=True)
+    resilient_node_group_name: Optional[str] = Field(None, nullable=True)  # For display purposes
     model_config = ConfigDict(from_attributes=True)
 
     @field_validator("remark", mode="after")

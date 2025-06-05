@@ -85,7 +85,7 @@ def get_or_create_inbound(db: Session, inbound_tag: str) -> ProxyInbound:
 
 def get_hosts(db: Session, inbound_tag: str) -> List[ProxyHost]:
     """
-    Retrieves hosts for a given inbound tag.
+    Retrieves hosts for a given inbound tag with resilient node group information.
 
     Args:
         db (Session): Database session.
@@ -95,7 +95,11 @@ def get_hosts(db: Session, inbound_tag: str) -> List[ProxyHost]:
         List[ProxyHost]: List of hosts for the inbound.
     """
     inbound = get_or_create_inbound(db, inbound_tag)
-    return inbound.hosts
+    # Eagerly load resilient node group information
+    hosts = db.query(ProxyHost).filter(ProxyHost.inbound_tag == inbound_tag).options(
+        joinedload(ProxyHost.resilient_node_group)
+    ).all()
+    return hosts
 
 
 def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[ProxyHost]:
@@ -122,7 +126,8 @@ def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[Proxy
             inbound=inbound,
             security=host.security,
             alpn=host.alpn,
-            fingerprint=host.fingerprint
+            fingerprint=host.fingerprint,
+            resilient_node_group_id=getattr(host, 'resilient_node_group_id', None)
         )
     )
     db.commit()
@@ -162,6 +167,7 @@ def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostMo
             noise_setting=host.noise_setting,
             random_user_agent=host.random_user_agent,
             use_sni_as_host=host.use_sni_as_host,
+            resilient_node_group_id=getattr(host, 'resilient_node_group_id', None)
         ) for host in modified_hosts
     ]
     db.commit()

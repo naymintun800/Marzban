@@ -65,6 +65,7 @@ import "slick-carousel/slick/slick-theme.css";
 import "slick-carousel/slick/slick.css";
 import { z } from "zod";
 import { useDashboard } from "../contexts/DashboardContext";
+import { useResilientNodeGroupsQuery } from "../hooks/useResilientNodeGroups";
 import { DeleteIcon } from "./DeleteUserModal";
 import { Icon } from "./Icon";
 import { Input as CustomInput } from "./Input";
@@ -153,6 +154,8 @@ const hostsSchema = z.record(
       alpn: z.string(),
       fingerprint: z.string(),
       use_sni_as_host: z.boolean().default(false),
+      resilient_node_group_id: z.number().nullable().optional(),
+      resilient_node_group_name: z.string().nullable().optional(),
     })
   )
 );
@@ -165,6 +168,70 @@ const Error = chakra(FormErrorMessage, {
     w: "100%",
   },
 });
+
+type ResilientNodeGroupSelectorProps = {
+  hostKey: string;
+  index: number;
+};
+
+const ResilientNodeGroupSelector: FC<ResilientNodeGroupSelectorProps> = ({ hostKey, index }) => {
+  const form = useFormContext<z.infer<typeof hostsSchema>>();
+  const { data: resilientNodeGroups, isLoading } = useResilientNodeGroupsQuery();
+  const { t } = useTranslation();
+  const { errors } = form.formState;
+  const accordionErrors = errors[hostKey];
+
+  return (
+    <FormControl
+      isInvalid={
+        !!(accordionErrors && accordionErrors[index]?.resilient_node_group_id)
+      }
+    >
+      <FormLabel
+        display="flex"
+        pb={1}
+        alignItems="center"
+        gap={1}
+        justifyContent="space-between"
+        m="0"
+      >
+        <span>Resilient Node Group (Optional)</span>
+        <Popover isLazy placement="right">
+          <PopoverTrigger>
+            <InfoIcon />
+          </PopoverTrigger>
+          <Portal>
+            <PopoverContent p={2}>
+              <PopoverArrow />
+              <PopoverCloseButton />
+              <Text fontSize="xs" pr={5}>
+                Assign this host to a Resilient Node Group for automatic failover and load balancing.
+                Leave empty to use this host as a standalone configuration.
+              </Text>
+            </PopoverContent>
+          </Portal>
+        </Popover>
+      </FormLabel>
+      <Select
+        size="sm"
+        {...form.register(hostKey + "." + index + ".resilient_node_group_id")}
+        disabled={isLoading}
+      >
+        <option value="">None (Standalone Host)</option>
+        {resilientNodeGroups?.map((group) => (
+          <option key={group.id} value={group.id}>
+            {group.name} ({group.node_ids?.length || 0} nodes)
+          </option>
+        ))}
+      </Select>
+      {accordionErrors && accordionErrors[index]?.resilient_node_group_id && (
+        <Error>
+          {accordionErrors[index]?.resilient_node_group_id?.message}
+        </Error>
+      )}
+    </FormControl>
+  );
+};
 
 type AccordionInboundType = {
   hostKey: string;
@@ -214,6 +281,8 @@ const AccordionInbound: FC<AccordionInboundType> = ({
       alpn: "",
       fingerprint: "",
       use_sni_as_host: false,
+      resilient_node_group_id: null,
+      resilient_node_group_name: null,
     });
   };
   const duplicateHost = (index: number) => {
@@ -842,6 +911,11 @@ const AccordionInbound: FC<AccordionInboundType> = ({
                                 </Error>
                               )}
                           </FormControl>
+
+                          <ResilientNodeGroupSelector
+                            hostKey={hostKey}
+                            index={index}
+                          />
 
                           <FormControl height="66px">
                             <FormLabel

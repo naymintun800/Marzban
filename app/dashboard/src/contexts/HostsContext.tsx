@@ -10,6 +10,8 @@ type HostsSchema = Record<
     path: string | null;
     sni: string | null;
     host: string | null;
+    resilient_node_group_id?: number | null;
+    resilient_node_group_name?: string | null;
   }[]
 >;
 
