@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 
 from app import xray
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
-# DEPRECATED: LoadBalancerStrategy import removed - functionality replaced with Resilient Node Groups
 from app.models.node import NodeStatus
 
 from . import *
@@ -283,12 +282,31 @@ def process_inbounds_and_tags(
 
             format_variables.update({"TRANSPORT": inbound["network"]})
             
-            # DEPRECATED: Load Balancer Logic has been removed
-            # Resilient Node Groups functionality will be implemented here in the future
-
-            # Original ProxyHost logic (if no LB or no active LBs for this tag)
+            # Resilient Node Groups Logic
             host_inbound = inbound.copy()
             for host in xray.hosts.get(tag, []):
+                # Check if this host has a resilient node group assigned
+                resilient_node_group_id = host.get("resilient_node_group_id")
+                if resilient_node_group_id:
+                    # Get the resilient node group and select a node
+                    resilient_group = crud.get_resilient_node_group(db, resilient_node_group_id)
+                    if resilient_group and resilient_group.nodes:
+                        # Filter active nodes
+                        active_nodes = [node for node in resilient_group.nodes if node.status == NodeStatus.connected]
+                        if active_nodes:
+                            # Select node based on strategy hint (for now, use random)
+                            selected_node = random.choice(active_nodes)
+                            # Use the selected node's address instead of host address
+                            node_address = selected_node.address
+                        else:
+                            # No active nodes, fall back to host address
+                            node_address = None
+                    else:
+                        # Group not found or empty, fall back to host address
+                        node_address = None
+                else:
+                    # No resilient node group, use traditional logic
+                    node_address = None
                 sni = ""
                 sni_list = host["sni"] or inbound["sni"]
                 if sni_list:
@@ -304,11 +322,17 @@ def process_inbounds_and_tags(
                     salt = secrets.token_hex(8)
                     req_host = random.choice(req_host_list).replace("*", salt)
 
-                address = ""
-                address_list = host['address']
-                if host['address']:
-                    salt = secrets.token_hex(8)
-                    address = random.choice(address_list).replace('*', salt)
+                # Use node address from resilient group if available, otherwise use host address
+                if node_address:
+                    # Use the selected node's address
+                    address = node_address.format_map(format_variables)
+                else:
+                    # Traditional host address logic
+                    address = ""
+                    address_list = host['address']
+                    if host['address']:
+                        salt = secrets.token_hex(8)
+                        address = random.choice(address_list).replace('*', salt)
 
                 if host["path"] is not None:
                     path = host["path"].format_map(format_variables)
