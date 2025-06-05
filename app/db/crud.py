@@ -1631,8 +1631,8 @@ def update_resilient_node_group(db: Session, group_id: int, group_update: Resili
         if node_ids is not None:
             nodes = db.query(Node).filter(Node.id.in_(node_ids)).all()
             # Basic check, consider raising error if not all found
-            # if len(nodes) != len(node_ids):
-            #     pass
+            # if len(nodes) != len(node_ids): 
+            #     pass 
             db_group.nodes = nodes
         else:  # Explicitly setting to empty list
             db_group.nodes = []

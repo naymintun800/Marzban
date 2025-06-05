@@ -379,7 +379,7 @@ class ResilientNodeGroup(Base):
     name = Column(String(100, collation='NOCASE'), unique=True, nullable=False, index=True)
     client_strategy_hint = Column(
         Enum(ClientStrategyHint), 
-        nullable=False, 
+        nullable=False,
         default=ClientStrategyHint.CLIENT_DEFAULT
     )
     
