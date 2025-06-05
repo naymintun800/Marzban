@@ -14,15 +14,15 @@ import { ResetUserUsageModal } from "components/ResetUserUsageModal";
 import { RevokeSubscriptionModal } from "components/RevokeSubscriptionModal";
 import { UserDialog } from "components/UserDialog";
 import { UsersTable } from "components/UsersTable";
-import LoadBalancerHostsModal from "components/LoadBalancerHostsModal";
+import ResilientNodeGroupsModal from "components/modals/ResilientNodeGroupsModal";
 import { fetchInbounds, useDashboard } from "contexts/DashboardContext";
 import { FC, useEffect } from "react";
 import { Statistics } from "../components/Statistics";
 
 export const Dashboard: FC = () => {
   const {
-    isManagingLoadBalancerHosts,
-    onManagingLoadBalancerHosts,
+    isResilientNodeGroupsModalOpen,
+    onCloseResilientNodeGroupsModal,
   } = useDashboard();
 
   useEffect(() => {
@@ -48,12 +48,7 @@ export const Dashboard: FC = () => {
         <ResetAllUsageModal />
         <CoreSettingsModal />
         <HiddifyImportModal />
-        {isManagingLoadBalancerHosts && (
-          <LoadBalancerHostsModal
-            isOpen={isManagingLoadBalancerHosts}
-            onClose={() => onManagingLoadBalancerHosts(false)}
-          />
-        )}
+        <ResilientNodeGroupsModal />
       </Box>
       <Footer />
     </VStack>

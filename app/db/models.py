@@ -32,7 +32,7 @@ from app.models.proxy import (
     ProxyTypes,
 )
 from app.models.user import ReminderType, UserDataLimitResetStrategy, UserStatus
-from app.models.load_balancer import LoadBalancerStrategy
+from app.models.resilient_node_group import ClientStrategyHint
 
 
 # Define association tables first if they are used by models defined below
@@ -50,11 +50,11 @@ template_inbounds_association = Table(
     Column("inbound_tag", ForeignKey("inbounds.tag")),
 )
 
-# Define loadbalancer_nodes_association before Node and LoadBalancerHost models
-loadbalancer_nodes_association = Table(
-    "loadbalancer_nodes_association",
+# Define resilient_node_group_nodes_association for many-to-many relationship
+resilient_node_group_nodes_association = Table(
+    "resilient_node_group_nodes_association",
     Base.metadata,
-    Column("load_balancer_host_id", ForeignKey("load_balancer_hosts.id"), primary_key=True),
+    Column("resilient_node_group_id", ForeignKey("resilient_node_groups.id"), primary_key=True),
     Column("node_id", ForeignKey("nodes.id"), primary_key=True),
 )
 
@@ -324,9 +324,9 @@ class Node(Base):
     user_usages = relationship("NodeUserUsage", back_populates="node", cascade="all, delete-orphan")
     usages = relationship("NodeUsage", back_populates="node", cascade="all, delete-orphan")
     usage_coefficient = Column(Float, nullable=False, server_default=text("1.0"), default=1)
-    load_balancers = relationship(
-        "LoadBalancerHost",
-        secondary="loadbalancer_nodes_association",
+    resilient_node_groups = relationship(
+        "ResilientNodeGroup",
+        secondary="resilient_node_group_nodes_association",
         back_populates="nodes"
     )
 
@@ -372,62 +372,27 @@ class NotificationReminder(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-class LoadBalancerHost(Base):
-    __tablename__ = "load_balancer_hosts"
+class ResilientNodeGroup(Base):
+    __tablename__ = "resilient_node_groups"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(256, collation='NOCASE'), unique=True, nullable=False, index=True)
-    remark_template = Column(String(256), nullable=False, default="LB-{USERNAME}-{PROTOCOL}")
-
-    # Client-facing address (e.g., your load balancer's domain)
-    address = Column(String(256), unique=False, nullable=False)
-    port = Column(Integer, nullable=True)
-    path = Column(String(256), unique=False, nullable=True)
-    sni = Column(String(1000), unique=False, nullable=True)
-    host_header = Column(String(1000), unique=False, nullable=True) # Renamed from 'host' to avoid conflict if any
-    security = Column(
-        Enum(ProxyHostSecurity),
-        unique=False,
-        nullable=False,
-        default=ProxyHostSecurity.inbound_default,
+    name = Column(String(100, collation='NOCASE'), unique=True, nullable=False, index=True)
+    client_strategy_hint = Column(
+        Enum(ClientStrategyHint), 
+        nullable=False, 
+        default=ClientStrategyHint.CLIENT_DEFAULT
     )
-    alpn = Column(
-        Enum(ProxyHostALPN),
-        unique=False,
-        nullable=False,
-        default=ProxyHostALPN.none, # Corrected default based on ProxyHost
-        server_default=ProxyHostALPN.none.name
-    )
-    fingerprint = Column(
-        Enum(ProxyHostFingerprint),
-        unique=False,
-        nullable=False,
-        default=ProxyHostFingerprint.none, # Corrected default
-        server_default=ProxyHostFingerprint.none.name
-    )
-    allowinsecure = Column(Boolean, nullable=True, default=False) # Default added
-    is_disabled = Column(Boolean, nullable=True, default=False)
-    mux_enable = Column(Boolean, nullable=False, default=False, server_default='0')
-    fragment_setting = Column(String(100), nullable=True)
-    noise_setting = Column(String(2000), nullable=True)
-    random_user_agent = Column(Boolean, nullable=False, default=False, server_default='0')
-    use_sni_as_host = Column(Boolean, nullable=False, default=False, server_default="0")
-
-    inbound_tag = Column(String(256), ForeignKey("inbounds.tag"), nullable=False)
-    inbound = relationship("ProxyInbound") # Simpler relationship, assuming one LB per inbound for now
-
-    load_balancing_strategy = Column(Enum(LoadBalancerStrategy), nullable=False, default=LoadBalancerStrategy.ROUND_ROBIN)
-
+    
+    # Many-to-many relationship with nodes
     nodes = relationship(
         "Node",
-        secondary="loadbalancer_nodes_association",
-        back_populates="load_balancers"
+        secondary="resilient_node_group_nodes_association",
+        back_populates="resilient_node_groups"
     )
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     @property
     def node_ids(self) -> List[int]:
         return [node.id for node in self.nodes] if self.nodes else []
-
-    __table_args__ = (UniqueConstraint('address', 'port', 'inbound_tag', 'sni', name='_lb_host_uc'),)

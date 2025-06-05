@@ -1,7 +1,8 @@
 import { StatisticsQueryKey } from "components/Statistics";
 import { fetch } from "service/http";
 import { User, UserCreate } from "types/User";
-import { LoadBalancerHostResponse } from "../types/loadBalancer";
+// import { LoadBalancerHostResponse } from "../types/loadBalancer"; // DEPRECATED
+import { ResilientNodeGroup, NewResilientNodeGroup } from "../types/resilientNodeGroup";
 import { queryClient } from "utils/react-query";
 import { getUsersPerPageLimitSize } from "utils/userPreferenceStorage";
 import { create } from "zustand";
@@ -52,8 +53,10 @@ type DashboardStateType = {
   revokeSubscriptionUser: User | null;
   isEditingCore: boolean;
   isImportingHiddifyUsers: boolean;
-  isManagingLoadBalancerHosts: boolean;
-  editingLoadBalancerHostData: LoadBalancerHostResponse | 'new' | null;
+  // isManagingLoadBalancerHosts: boolean; // DEPRECATED
+  // editingLoadBalancerHostData: LoadBalancerHostResponse | 'new' | null; // DEPRECATED
+  isResilientNodeGroupsModalOpen: boolean;
+  editingResilientNodeGroup: NewResilientNodeGroup | null;
   onCreateUser: (isOpen: boolean) => void;
   onEditingUser: (user: User | null) => void;
   onDeletingUser: (user: User | null) => void;
@@ -73,8 +76,12 @@ type DashboardStateType = {
   resetDataUsage: (user: User) => Promise<void>;
   revokeSubscription: (user: User) => Promise<void>;
   onImportHiddifyUsers: (isImporting: boolean) => void;
-  onManagingLoadBalancerHosts: (isManaging: boolean) => void;
-  onOpenLoadBalancerHostForm: (data: LoadBalancerHostResponse | 'new' | null) => void;
+  // onManagingLoadBalancerHosts: (isManaging: boolean) => void; // DEPRECATED
+  // onOpenLoadBalancerHostForm: (data: LoadBalancerHostResponse | 'new' | null) => void; // DEPRECATED
+  onOpenResilientNodeGroupsModal: () => void;
+  onCloseResilientNodeGroupsModal: () => void;
+  onEditResilientNodeGroup: (group: ResilientNodeGroup) => void;
+  onAddNewResilientNodeGroup: () => void;
 };
 
 const fetchUsers = (query: FilterType): Promise<User[]> => {
@@ -124,8 +131,10 @@ export const useDashboard = create(
     resetUsageUser: null,
     revokeSubscriptionUser: null,
     isImportingHiddifyUsers: false,
-    isManagingLoadBalancerHosts: false,
-    editingLoadBalancerHostData: null,
+    // isManagingLoadBalancerHosts: false, // DEPRECATED
+    // editingLoadBalancerHostData: null, // DEPRECATED
+    isResilientNodeGroupsModalOpen: false,
+    editingResilientNodeGroup: null,
     filters: {
       username: "",
       limit: getUsersPerPageLimitSize(),
@@ -204,8 +213,7 @@ export const useDashboard = create(
     onShowingNodesUsage: (isShowingNodesUsage: boolean) => {
       set({ isShowingNodesUsage });
     },
-    onManagingLoadBalancerHosts: (isManagingLoadBalancerHosts) => set({ isManagingLoadBalancerHosts }),
-    onOpenLoadBalancerHostForm: (data) => set({ editingLoadBalancerHostData: data }),
+    // onManagingLoadBalancerHosts: (isManagingLoadBalancerHosts) => set({ isManagingLoadBalancerHosts }), // DEPRECATED
     setSubLink: (subscribeUrl) => {
       set({ subscribeUrl });
     },
@@ -225,5 +233,9 @@ export const useDashboard = create(
         get().refetchUsers();
       });
     },
+    onOpenResilientNodeGroupsModal: () => set({ isResilientNodeGroupsModalOpen: true, editingResilientNodeGroup: null }),
+    onCloseResilientNodeGroupsModal: () => set({ isResilientNodeGroupsModalOpen: false, editingResilientNodeGroup: null }),
+    onEditResilientNodeGroup: (group) => set({ isResilientNodeGroupsModalOpen: true, editingResilientNodeGroup: group }),
+    onAddNewResilientNodeGroup: () => set({ isResilientNodeGroupsModalOpen: true, editingResilientNodeGroup: { name: '', node_ids: [], client_strategy_hint: '' } as NewResilientNodeGroup }),
   }))
 );

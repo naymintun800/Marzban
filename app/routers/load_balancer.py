@@ -1,3 +1,10 @@
+# DEPRECATED: Load Balancer Hosts feature has been replaced by Resilient Node Groups
+# This file is scheduled for removal
+# TODO: Remove this entire file and its routes after migration is complete
+
+# Load Balancer Router - DEPRECATED
+# Use Resilient Node Groups (/api/resilient-node-groups) instead
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Body

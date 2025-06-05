@@ -1,5 +1,11 @@
 """add_load_balancer_tables
 
+DEPRECATED: Load Balancer Hosts feature has been replaced by Resilient Node Groups.
+This migration defined tables for a feature that is now removed.
+If this migration was applied, a new migration should be created to drop these tables ('load_balancer_hosts', 'loadbalancer_nodes_association').
+If it was not applied, this file can be deleted.
+TODO: Ensure this is handled correctly based on database state.
+
 Revision ID: 1a2b3c4d5e6f # Replace with actual generated ID
 Revises: <ID_of_previous_migration> # Replace with the ID of the migration this follows
 Create Date: YYYY-MM-DD HH:MM:SS.ssssss # Replace with actual timestamp

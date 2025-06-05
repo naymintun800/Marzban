@@ -1,3 +1,10 @@
+# DEPRECATED: Load Balancer Hosts feature has been replaced by Resilient Node Groups
+# This file is scheduled for removal
+# TODO: Remove this entire file after migration is complete
+
+# Pydantic Models for Load Balancer Hosts - DEPRECATED
+# Use Resilient Node Groups (app/models/resilient_node_group.py) instead
+
 from enum import Enum
 from typing import List, Optional
 from pydantic import BaseModel, Field, ConfigDict

@@ -99,7 +99,7 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
     onEditingNodes,
     onShowingNodesUsage,
     onImportHiddifyUsers,
-    onManagingLoadBalancerHosts,
+    onOpenResilientNodeGroupsModal,
   } = useDashboard();
   const { t } = useTranslation();
   const { colorMode, toggleColorMode } = useColorMode();
@@ -148,12 +148,12 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
               {isSudo() && (
                 <>
                   <MenuItem
-                    onClick={() => onManagingLoadBalancerHosts(true)}
+                    onClick={onOpenResilientNodeGroupsModal}
                     maxW="170px"
                     fontSize="sm"
                     icon={<NodesIcon />}
                   >
-                    {t("header.loadBalancerHosts")}
+                    {t("header.resilientNodeGroups")}
                   </MenuItem>
                   <MenuItem
                     maxW="170px"
