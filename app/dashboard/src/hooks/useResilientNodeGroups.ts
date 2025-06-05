@@ -17,7 +17,7 @@ const updateResilientNodeGroup = async (groupData: ResilientNodeGroup): Promise<
   return fetch(`/api/resilient-node-groups/${groupData.id}`, { method: 'PUT', body: groupData });
 };
 
-const deleteResilientNodeGroup = async (groupId: string): Promise<void> => {
+const deleteResilientNodeGroup = async (groupId: number): Promise<void> => {
   return fetch(`/api/resilient-node-groups/${groupId}`, { method: 'DELETE' });
 };
 
@@ -55,9 +55,9 @@ export const useUpdateResilientNodeGroupMutation = () => {
 
 export const useDeleteResilientNodeGroupMutation = () => {
   const queryClient = useQueryClient();
-  return useMutation<void, Error, string>(deleteResilientNodeGroup, {
+  return useMutation<void, Error, number>(deleteResilientNodeGroup, {
     onSuccess: () => {
       queryClient.invalidateQueries([RESILIENT_NODE_GROUPS_QUERY_KEY]);
     },
   });
-}; 
+};

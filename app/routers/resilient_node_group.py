@@ -5,13 +5,15 @@ from sqlalchemy.orm import Session
 
 from app.db import crud
 from app.db import get_db
+from app.models.admin import Admin
 from app.models.resilient_node_group import (
     ResilientNodeGroupCreate,
     ResilientNodeGroupResponse,
     ResilientNodeGroupUpdate,
 )
+from app.utils import responses
 
-router = APIRouter(tags=["Resilient Node Groups"])
+router = APIRouter(tags=["Resilient Node Groups"], responses={401: responses._401, 403: responses._403})
 
 
 @router.post(
@@ -22,7 +24,8 @@ router = APIRouter(tags=["Resilient Node Groups"])
 )
 def create_resilient_node_group(
     group_in: ResilientNodeGroupCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin)
 ):
     """
     Create a new Resilient Node Group.
@@ -70,7 +73,8 @@ def create_resilient_node_group(
 def get_resilient_node_groups_list(
     skip: int = Query(0, ge=0, description="Number of items to skip for pagination"),
     limit: int = Query(100, ge=1, le=200, description="Maximum number of items to return"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin)
 ):
     """
     Retrieve a paginated list of all Resilient Node Groups.
@@ -86,7 +90,8 @@ def get_resilient_node_groups_list(
 )
 def get_resilient_node_group(
     group_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin)
 ):
     """
     Retrieve a specific Resilient Node Group by its ID.
@@ -105,7 +110,8 @@ def get_resilient_node_group(
 def update_resilient_node_group(
     group_id: int,
     group_update: ResilientNodeGroupUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin)
 ):
     """
     Update an existing Resilient Node Group.
@@ -155,7 +161,8 @@ def update_resilient_node_group(
 )
 def delete_resilient_node_group(
     group_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin)
 ):
     """
     Delete a Resilient Node Group.
