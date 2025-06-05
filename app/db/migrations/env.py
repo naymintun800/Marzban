@@ -35,7 +35,7 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 
 # DEBUG: Print the keys of the tables registered with Base.metadata
-print(f"DEBUG [Alembic env.py]: Tables in Base.metadata before autogenerate: {Base.metadata.tables.keys()}")
+# print(f"DEBUG [Alembic env.py]: Tables in Base.metadata before autogenerate: {Base.metadata.tables.keys()}") # Temporarily commented out
 
 target_metadata = Base.metadata
 

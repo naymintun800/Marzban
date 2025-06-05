@@ -6,8 +6,8 @@ If this migration was applied, a new migration should be created to drop these t
 If it was not applied, this file can be deleted.
 TODO: Ensure this is handled correctly based on database state.
 
-Revision ID: 1a2b3c4d5e6f # Replace with actual generated ID
-Revises: <ID_of_previous_migration> # Replace with the ID of the migration this follows
+Revision ID: 1a2b3c4d5e6f
+Revises: None
 Create Date: YYYY-MM-DD HH:MM:SS.ssssss # Replace with actual timestamp
 
 """
@@ -18,8 +18,8 @@ from app.models.proxy import ProxyHostSecurity, ProxyHostALPN, ProxyHostFingerpr
 
 
 # revision identifiers, used by Alembic.
-revision = '1a2b3c4d5e6f' # Replace with actual generated ID
-down_revision = '<ID_of_previous_migration>' # Replace with the ID of the migration this follows
+revision = '1a2b3c4d5e6f'
+down_revision = None # Corrected from placeholder
 branch_labels = None
 depends_on = None
 
