@@ -214,7 +214,9 @@ const ResilientNodeGroupSelector: FC<ResilientNodeGroupSelectorProps> = ({ hostK
       </FormLabel>
       <Select
         size="sm"
-        {...form.register(hostKey + "." + index + ".resilient_node_group_id")}
+        {...form.register(hostKey + "." + index + ".resilient_node_group_id", {
+          setValueAs: (value) => value === "" ? null : Number(value)
+        })}
         disabled={isLoading}
       >
         <option value="">None (Standalone Host)</option>

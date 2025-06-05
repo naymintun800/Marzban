@@ -315,7 +315,8 @@ class Node(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(256, collation='NOCASE'), unique=True)
-    address = Column(String(256), unique=False, nullable=False)
+    address = Column(String(256), unique=False, nullable=False)  # Management address for API communication
+    client_address = Column(String(256), unique=False, nullable=True)  # Client-facing address (domain/IP for users)
     port = Column(Integer, unique=False, nullable=False)
     api_port = Column(Integer, unique=False, nullable=False)
     xray_version = Column(String(32), nullable=True)
