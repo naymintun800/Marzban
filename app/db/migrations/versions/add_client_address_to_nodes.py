@@ -17,13 +17,19 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add client_address column to nodes table
-    # This is the address that clients will connect to (can be different from management address)
-    op.add_column('nodes', sa.Column('client_address', sa.String(256), nullable=True))
-    
-    # For existing nodes, copy the management address as the default client address
-    # This ensures backward compatibility
-    op.execute("UPDATE nodes SET client_address = address WHERE client_address IS NULL")
+    # Check if column already exists before adding it
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('nodes')]
+
+    if 'client_address' not in columns:
+        # Add client_address column to nodes table
+        # This is the address that clients will connect to (can be different from management address)
+        op.add_column('nodes', sa.Column('client_address', sa.String(256), nullable=True))
+
+        # For existing nodes, copy the management address as the default client address
+        # This ensures backward compatibility
+        op.execute("UPDATE nodes SET client_address = address WHERE client_address IS NULL")
 
 
 def downgrade() -> None:

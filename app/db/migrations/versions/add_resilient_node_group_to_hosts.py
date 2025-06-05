@@ -17,21 +17,27 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add resilient_node_group_id column to hosts table
-    op.add_column('hosts', sa.Column('resilient_node_group_id', sa.Integer(), nullable=True))
-    
-    # Add foreign key constraint
-    op.create_foreign_key(
-        'fk_hosts_resilient_node_group_id',
-        'hosts', 
-        'resilient_node_groups',
-        ['resilient_node_group_id'], 
-        ['id'],
-        ondelete='SET NULL'
-    )
-    
-    # Add index for better query performance
-    op.create_index('ix_hosts_resilient_node_group_id', 'hosts', ['resilient_node_group_id'])
+    # Check if column already exists before adding it
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('hosts')]
+
+    if 'resilient_node_group_id' not in columns:
+        # Add resilient_node_group_id column to hosts table
+        op.add_column('hosts', sa.Column('resilient_node_group_id', sa.Integer(), nullable=True))
+
+        # Add foreign key constraint
+        op.create_foreign_key(
+            'fk_hosts_resilient_node_group_id',
+            'hosts',
+            'resilient_node_groups',
+            ['resilient_node_group_id'],
+            ['id'],
+            ondelete='SET NULL'
+        )
+
+        # Add index for better query performance
+        op.create_index('ix_hosts_resilient_node_group_id', 'hosts', ['resilient_node_group_id'])
 
 
 def downgrade() -> None:
