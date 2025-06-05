@@ -62,7 +62,12 @@ const ResilientNodeGroupForm: React.FC = () => {
   const createMutation = useCreateResilientNodeGroupMutation();
   const updateMutation = useUpdateResilientNodeGroupMutation();
 
-  const isEditing = !!editingResilientNodeGroup?.id;
+  // Type guard to check if we're editing an existing group
+  const isEditingExistingGroup = (group: any): group is ResilientNodeGroup => {
+    return group && typeof group.id === 'number' && 'nodes' in group && 'created_at' in group;
+  };
+
+  const isEditing = editingResilientNodeGroup && isEditingExistingGroup(editingResilientNodeGroup);
   const mutationLoading = createMutation.isLoading || updateMutation.isLoading;
 
   const validateForm = () => {
@@ -87,35 +92,44 @@ const ResilientNodeGroupForm: React.FC = () => {
   const handleSubmit = () => {
     if (!validateForm()) return;
 
-    const groupData: NewResilientNodeGroup | ResilientNodeGroup = {
-      name: name.trim(),
-      node_ids: selectedNodeIds,
-      client_strategy_hint: clientStrategyHint,
-      ...(isEditing && { id: editingResilientNodeGroup!.id }),
+    const onSuccess = () => {
+      toast({
+        title: 'Success',
+        description: `Resilient Node Group ${isEditing ? 'updated' : 'created'} successfully!`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      onCloseResilientNodeGroupsModal();
     };
 
-    const mutation = isEditing ? updateMutation : createMutation;
-    mutation.mutate(groupData as any, {
-      onSuccess: () => {
-        toast({
-          title: 'Success',
-          description: `Resilient Node Group ${isEditing ? 'updated' : 'created'} successfully!`,
-          status: 'success',
-          duration: 3000,
-          isClosable: true,
-        });
-        onCloseResilientNodeGroupsModal();
-      },
-      onError: (err: any) => {
-        toast({
-          title: 'Error',
-          description: `Failed to ${isEditing ? 'update' : 'create'} group: ${err.message}`,
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      },
-    });
+    const onError = (err: any) => {
+      toast({
+        title: 'Error',
+        description: `Failed to ${isEditing ? 'update' : 'create'} group: ${err.message}`,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    };
+
+    if (isEditing) {
+      const existingGroup = editingResilientNodeGroup as ResilientNodeGroup;
+      const groupData: ResilientNodeGroup = {
+        ...existingGroup,
+        name: name.trim(),
+        node_ids: selectedNodeIds,
+        client_strategy_hint: clientStrategyHint,
+      };
+      updateMutation.mutate(groupData, { onSuccess, onError });
+    } else {
+      const groupData: NewResilientNodeGroup = {
+        name: name.trim(),
+        node_ids: selectedNodeIds,
+        client_strategy_hint: clientStrategyHint,
+      };
+      createMutation.mutate(groupData, { onSuccess, onError });
+    }
   };
 
   useEffect(() => {

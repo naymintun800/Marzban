@@ -56,7 +56,7 @@ type DashboardStateType = {
   // isManagingLoadBalancerHosts: boolean; // DEPRECATED
   // editingLoadBalancerHostData: LoadBalancerHostResponse | 'new' | null; // DEPRECATED
   isResilientNodeGroupsModalOpen: boolean;
-  editingResilientNodeGroup: NewResilientNodeGroup | null;
+  editingResilientNodeGroup: ResilientNodeGroup | NewResilientNodeGroup | null;
   onCreateUser: (isOpen: boolean) => void;
   onEditingUser: (user: User | null) => void;
   onDeletingUser: (user: User | null) => void;
