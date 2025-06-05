@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app import crud
+from app.db import crud
 from app.db import get_db
 from app.models.resilient_node_group import (
     ResilientNodeGroupCreate,
