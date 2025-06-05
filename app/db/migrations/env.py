@@ -1,6 +1,6 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
+from sqlalchemy import engine_from_config, create_engine
 from sqlalchemy import pool
 
 from alembic import context
@@ -22,7 +22,14 @@ from config import SQLALCHEMY_DATABASE_URL
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option('sqlalchemy.url', SQLALCHEMY_DATABASE_URL)
+# Ensure Alembic uses the URL from config.py, not just its own .ini settings for sqlalchemy.url
+# This also helps if SQLALCHEMY_DATABASE_URL is dynamically set by environment for the app.
+if SQLALCHEMY_DATABASE_URL:
+    config.set_main_option('sqlalchemy.url', SQLALCHEMY_DATABASE_URL)
+else:
+    # Fallback or error if SQLALCHEMY_DATABASE_URL is not in config, 
+    # though alembic.ini usually has a default for sqlalchemy.url
+    pass 
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -58,11 +65,13 @@ def run_migrations_offline() -> None:
 
     """
     url = config.get_main_option("sqlalchemy.url")
+    print(f"DEBUG [Alembic env.py - OFFLINE]: Using URL: {url}")
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        render_as_batch=True
     )
 
     with context.begin_transaction():
@@ -76,22 +85,33 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # Use the URL from our app's config, and enable SQL echoing
+    db_url_for_engine = config.get_main_option("sqlalchemy.url") 
+    print(f"DEBUG [Alembic env.py - ONLINE]: Using URL for engine: {db_url_for_engine}")
+    
+    connectable = create_engine(db_url_for_engine, echo=True)
 
     with connectable.connect() as connection:
+        print(f"DEBUG [Alembic env.py - ONLINE]: Configuring context for connection: {connection}")
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, 
+            target_metadata=target_metadata,
+            render_as_batch=True
         )
-
-        with context.begin_transaction():
-            context.run_migrations()
+        
+        print("DEBUG [Alembic env.py - ONLINE]: BEGINNING ONLINE MIGRATIONS with SQL echoing")
+        try:
+            with context.begin_transaction():
+                context.run_migrations()
+            print("DEBUG [Alembic env.py - ONLINE]: FINISHED ONLINE MIGRATIONS successfully")
+        except Exception as e:
+            print(f"DEBUG [Alembic env.py - ONLINE]: ERROR DURING MIGRATIONS: {e}")
+            raise
 
 
 if context.is_offline_mode():
+    print("DEBUG [Alembic env.py]: Running in OFFLINE mode")
     run_migrations_offline()
 else:
+    print("DEBUG [Alembic env.py]: Running in ONLINE mode")
     run_migrations_online()
