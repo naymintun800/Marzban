@@ -2,6 +2,8 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from typing import List, Dict, Any
+from datetime import datetime, timedelta
 
 from app.db import crud
 from app.db import get_db
@@ -11,6 +13,7 @@ from app.models.resilient_node_group import (
     ResilientNodeGroupResponse,
     ResilientNodeGroupUpdate,
 )
+from app.models.node import NodeStatus
 from app.utils import responses
 
 router = APIRouter(tags=["Resilient Node Groups"], responses={401: responses._401, 403: responses._403})
@@ -174,4 +177,161 @@ def delete_resilient_node_group(
         raise HTTPException(status_code=404, detail="Resilient Node Group not found")
     
     # Return 204 No Content on successful deletion
-    return 
+    return
+
+
+# --- Metrics and Monitoring Endpoints ---
+
+@router.get(
+    "/api/resilient-node-groups/metrics/overview",
+    summary="Get Resilient Node Groups Overview Metrics"
+)
+def get_resilient_node_groups_overview(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin)
+) -> Dict[str, Any]:
+    """
+    Get overview metrics for all resilient node groups and their nodes.
+    """
+    # Get all groups
+    groups = crud.get_all_resilient_node_groups(db)
+
+    # Get all nodes
+    all_nodes = crud.get_nodes(db)
+    connected_nodes = [n for n in all_nodes if n.status == NodeStatus.connected]
+
+    # Calculate metrics
+    total_groups = len(groups)
+    total_nodes_in_groups = sum(len(group.nodes) for group in groups)
+    healthy_nodes = len([n for n in connected_nodes if n.success_rate is None or n.success_rate >= 80])
+    total_active_connections = sum(n.active_connections for n in connected_nodes)
+
+    # Calculate average performance
+    performance_nodes = [n for n in connected_nodes if n.avg_response_time is not None]
+    avg_response_time = sum(n.avg_response_time for n in performance_nodes) / len(performance_nodes) if performance_nodes else None
+
+    success_rate_nodes = [n for n in connected_nodes if n.success_rate is not None]
+    avg_success_rate = sum(n.success_rate for n in success_rate_nodes) / len(success_rate_nodes) if success_rate_nodes else None
+
+    return {
+        "total_groups": total_groups,
+        "total_nodes": len(all_nodes),
+        "connected_nodes": len(connected_nodes),
+        "nodes_in_groups": total_nodes_in_groups,
+        "healthy_nodes": healthy_nodes,
+        "total_active_connections": total_active_connections,
+        "avg_response_time": round(avg_response_time, 1) if avg_response_time else None,
+        "avg_success_rate": round(avg_success_rate, 1) if avg_success_rate else None,
+    }
+
+
+@router.get(
+    "/api/resilient-node-groups/metrics/performance",
+    summary="Get Node Performance Metrics"
+)
+def get_node_performance_metrics(
+    hours: int = 24,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin)
+) -> Dict[str, Any]:
+    """
+    Get performance metrics for all nodes in resilient groups.
+    """
+    # Get all groups with their nodes
+    groups = crud.get_all_resilient_node_groups(db)
+
+    performance_data = []
+
+    for group in groups:
+        group_data = {
+            "group_id": group.id,
+            "group_name": group.name,
+            "strategy": group.client_strategy_hint.value,
+            "nodes": []
+        }
+
+        for node in group.nodes:
+            if node.status == NodeStatus.connected:
+                # Get recent performance metrics
+                recent_metrics = crud.get_node_performance_metrics(db, node.id, hours)
+
+                node_data = {
+                    "node_id": node.id,
+                    "node_name": node.name,
+                    "status": node.status.value,
+                    "avg_response_time": node.avg_response_time,
+                    "success_rate": node.success_rate,
+                    "active_connections": node.active_connections,
+                    "total_connections": node.total_connections,
+                    "last_check": node.last_performance_check.isoformat() if node.last_performance_check else None,
+                    "recent_checks": len(recent_metrics),
+                }
+                group_data["nodes"].append(node_data)
+
+        performance_data.append(group_data)
+
+    return {
+        "groups": performance_data,
+        "timestamp": datetime.utcnow().isoformat(),
+        "period_hours": hours
+    }
+
+
+@router.get(
+    "/api/resilient-node-groups/{group_id}/metrics",
+    summary="Get Specific Group Metrics"
+)
+def get_group_metrics(
+    group_id: int,
+    hours: int = 24,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin)
+) -> Dict[str, Any]:
+    """
+    Get detailed metrics for a specific resilient node group.
+    """
+    group = crud.get_resilient_node_group(db, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="Resilient Node Group not found")
+
+    # Calculate group statistics
+    connected_nodes = [n for n in group.nodes if n.status == NodeStatus.connected]
+    total_connections = sum(n.active_connections for n in connected_nodes)
+
+    # Node details with performance history
+    nodes_data = []
+    for node in group.nodes:
+        recent_metrics = crud.get_node_performance_metrics(db, node.id, hours)
+
+        # Calculate trends
+        if len(recent_metrics) >= 2:
+            recent_avg = sum(m.response_time for m in recent_metrics[:5] if m.success) / max(1, len([m for m in recent_metrics[:5] if m.success]))
+            older_avg = sum(m.response_time for m in recent_metrics[-5:] if m.success) / max(1, len([m for m in recent_metrics[-5:] if m.success]))
+            trend = "improving" if recent_avg < older_avg else "degrading" if recent_avg > older_avg else "stable"
+        else:
+            trend = "insufficient_data"
+
+        node_data = {
+            "node_id": node.id,
+            "node_name": node.name,
+            "status": node.status.value,
+            "avg_response_time": node.avg_response_time,
+            "success_rate": node.success_rate,
+            "active_connections": node.active_connections,
+            "total_connections": node.total_connections,
+            "performance_trend": trend,
+            "recent_metrics_count": len(recent_metrics),
+            "last_check": node.last_performance_check.isoformat() if node.last_performance_check else None,
+        }
+        nodes_data.append(node_data)
+
+    return {
+        "group_id": group.id,
+        "group_name": group.name,
+        "strategy": group.client_strategy_hint.value,
+        "total_nodes": len(group.nodes),
+        "connected_nodes": len(connected_nodes),
+        "total_active_connections": total_connections,
+        "nodes": nodes_data,
+        "timestamp": datetime.utcnow().isoformat(),
+    }

@@ -26,11 +26,16 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   useDisclosure,
+  Badge,
+  Tooltip,
 } from '@chakra-ui/react';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useResilientNodeGroupsQuery, useDeleteResilientNodeGroupMutation } from '../../hooks/useResilientNodeGroups';
 import { ResilientNodeGroup } from '../../types/resilientNodeGroup';
+import { NodePerformanceResponse } from '../../types/nodeMetrics';
 import ResilientNodeGroupForm from '../forms/ResilientNodeGroupForm';
+import { useQuery } from 'react-query';
+import { fetch } from '../../service/http';
 
 const ResilientNodeGroupsModal: React.FC = () => {
   const {
@@ -42,6 +47,12 @@ const ResilientNodeGroupsModal: React.FC = () => {
   } = useDashboard();
 
   const { data: resilientNodeGroups, isLoading: isLoadingGroups, error: fetchError } = useResilientNodeGroupsQuery();
+  const { data: performanceData } = useQuery<NodePerformanceResponse>({
+    queryKey: "node-performance-data",
+    queryFn: () => fetch("/api/resilient-node-groups/metrics/performance"),
+    refetchInterval: 30000, // Refresh every 30 seconds
+    retry: 1,
+  });
   const deleteMutation = useDeleteResilientNodeGroupMutation();
   const toast = useToast();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -96,6 +107,48 @@ const ResilientNodeGroupsModal: React.FC = () => {
 
   const showForm = !!editingResilientNodeGroup;
 
+  // Helper function to get group performance data
+  const getGroupPerformance = (groupId: number) => {
+    return performanceData?.groups.find(g => g.group_id === groupId);
+  };
+
+  // Helper function to determine health status
+  const getHealthStatus = (groupPerf: any) => {
+    if (!groupPerf || !groupPerf.nodes.length) {
+      return { color: "gray", text: "No Data", tooltip: "No performance data available" };
+    }
+
+    const connectedNodes = groupPerf.nodes.filter((n: any) => n.status === 'connected');
+    const healthyNodes = connectedNodes.filter((n: any) =>
+      n.success_rate === null || n.success_rate >= 80
+    );
+
+    if (connectedNodes.length === 0) {
+      return { color: "red", text: "Offline", tooltip: "No connected nodes" };
+    }
+
+    const healthPercentage = (healthyNodes.length / connectedNodes.length) * 100;
+    if (healthPercentage >= 80) {
+      return {
+        color: "green",
+        text: "Healthy",
+        tooltip: `${healthyNodes.length}/${connectedNodes.length} nodes healthy`
+      };
+    }
+    if (healthPercentage >= 60) {
+      return {
+        color: "yellow",
+        text: "Warning",
+        tooltip: `${healthyNodes.length}/${connectedNodes.length} nodes healthy`
+      };
+    }
+    return {
+      color: "red",
+      text: "Critical",
+      tooltip: `${healthyNodes.length}/${connectedNodes.length} nodes healthy`
+    };
+  };
+
   return (
     <>
       <Modal isOpen={isResilientNodeGroupsModalOpen} onClose={onCloseResilientNodeGroupsModal} size="4xl">
@@ -126,38 +179,75 @@ const ResilientNodeGroupsModal: React.FC = () => {
                     <Thead>
                       <Tr>
                         <Th>Group Name</Th>
-                        <Th>Number of Nodes</Th>
-                        <Th>Client Strategy Hint</Th>
+                        <Th>Nodes</Th>
+                        <Th>Strategy</Th>
+                        <Th>Health</Th>
                         <Th>Actions</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {resilientNodeGroups?.map((group) => (
-                        <Tr key={group.id}>
-                          <Td>{group.name}</Td>
-                          <Td>{group.node_ids?.length || 0}</Td>
-                          <Td>{group.client_strategy_hint}</Td>
-                          <Td>
-                            <HStack spacing={2}>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => onEditResilientNodeGroup(group)}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                size="xs"
-                                colorScheme="red"
-                                variant="outline"
-                                onClick={() => handleDeleteClick(group.id)}
-                              >
-                                Delete
-                              </Button>
-                            </HStack>
-                          </Td>
-                        </Tr>
-                      ))}
+                      {resilientNodeGroups?.map((group) => {
+                        const groupPerf = getGroupPerformance(group.id);
+                        const healthStatus = getHealthStatus(groupPerf);
+                        const connectedCount = groupPerf?.nodes.filter((n: any) => n.status === 'connected').length || 0;
+                        const totalConnections = groupPerf?.nodes.reduce((sum: number, n: any) => sum + (n.active_connections || 0), 0) || 0;
+
+                        return (
+                          <Tr key={group.id}>
+                            <Td>
+                              <VStack align="start" spacing={1}>
+                                <Text fontWeight="medium">{group.name}</Text>
+                                {totalConnections > 0 && (
+                                  <Text fontSize="xs" color="gray.500">
+                                    {totalConnections} active connections
+                                  </Text>
+                                )}
+                              </VStack>
+                            </Td>
+                            <Td>
+                              <VStack align="start" spacing={1}>
+                                <Text>{group.node_ids?.length || 0} total</Text>
+                                {connectedCount > 0 && (
+                                  <Text fontSize="xs" color="green.500">
+                                    {connectedCount} connected
+                                  </Text>
+                                )}
+                              </VStack>
+                            </Td>
+                            <Td>
+                              <Badge variant="outline" fontSize="xs">
+                                {group.client_strategy_hint}
+                              </Badge>
+                            </Td>
+                            <Td>
+                              <Tooltip label={healthStatus.tooltip}>
+                                <Badge colorScheme={healthStatus.color} variant="subtle" fontSize="xs">
+                                  {healthStatus.text}
+                                </Badge>
+                              </Tooltip>
+                            </Td>
+                            <Td>
+                              <HStack spacing={2}>
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={() => onEditResilientNodeGroup(group)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="xs"
+                                  colorScheme="red"
+                                  variant="outline"
+                                  onClick={() => handleDeleteClick(group.id)}
+                                >
+                                  Delete
+                                </Button>
+                              </HStack>
+                            </Td>
+                          </Tr>
+                        );
+                      })}
                     </Tbody>
                   </Table>
                 </TableContainer>

@@ -334,6 +334,17 @@ class Node(Base):
         back_populates="nodes"
     )
 
+    # Performance tracking fields
+    avg_response_time = Column(Float, nullable=True, default=None)  # Average response time in milliseconds
+    success_rate = Column(Float, nullable=True, default=None)  # Success rate percentage (0-100)
+    last_performance_check = Column(DateTime, nullable=True, default=None)
+    active_connections = Column(Integer, nullable=False, default=0)  # Current active connections count
+    total_connections = Column(BigInteger, nullable=False, default=0)  # Total connections served
+
+    # Performance history relationships
+    performance_metrics = relationship("NodePerformanceMetric", back_populates="node", cascade="all, delete-orphan")
+    connection_logs = relationship("NodeConnectionLog", back_populates="node", cascade="all, delete-orphan")
+
 
 class NodeUserUsage(Base):
     __tablename__ = "node_user_usages"
@@ -376,24 +387,54 @@ class NotificationReminder(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class NodePerformanceMetric(Base):
+    __tablename__ = "node_performance_metrics"
+    __table_args__ = (
+        UniqueConstraint('created_at', 'node_id'),
+    )
+
+    id = Column(Integer, primary_key=True)
+    node_id = Column(Integer, ForeignKey("nodes.id"), nullable=False)
+    node = relationship("Node", back_populates="performance_metrics")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    response_time = Column(Float, nullable=False)  # Response time in milliseconds
+    success = Column(Boolean, nullable=False)  # Whether the check was successful
+    error_message = Column(String(512), nullable=True)  # Error message if failed
+
+
+class NodeConnectionLog(Base):
+    __tablename__ = "node_connection_logs"
+
+    id = Column(Integer, primary_key=True)
+    node_id = Column(Integer, ForeignKey("nodes.id"), nullable=False)
+    node = relationship("Node", back_populates="connection_logs")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user = relationship("User")
+    subscription_token = Column(String(256), nullable=True)  # To track same subscription usage
+    connected_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    disconnected_at = Column(DateTime, nullable=True)
+    user_agent = Column(String(512), nullable=True)  # To help identify different devices
+    client_ip = Column(String(45), nullable=True)  # IPv4 or IPv6
+
+
 class ResilientNodeGroup(Base):
     __tablename__ = "resilient_node_groups"
 
     id = Column(Integer, primary_key=True)
     name = Column(String(100, collation='NOCASE'), unique=True, nullable=False, index=True)
     client_strategy_hint = Column(
-        Enum(ClientStrategyHint), 
+        Enum(ClientStrategyHint),
         nullable=False,
         default=ClientStrategyHint.CLIENT_DEFAULT
     )
-    
+
     # Many-to-many relationship with nodes
     nodes = relationship(
         "Node",
         secondary="resilient_node_group_nodes_association",
         back_populates="resilient_node_groups"
     )
-    
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

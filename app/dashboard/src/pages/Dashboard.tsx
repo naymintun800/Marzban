@@ -18,6 +18,7 @@ import ResilientNodeGroupsModal from "components/modals/ResilientNodeGroupsModal
 import { fetchInbounds, useDashboard } from "contexts/DashboardContext";
 import { FC, useEffect } from "react";
 import { Statistics } from "../components/Statistics";
+import { NodePerformanceOverview } from "../components/NodePerformanceOverview";
 
 export const Dashboard: FC = () => {
   const {
@@ -35,6 +36,7 @@ export const Dashboard: FC = () => {
       <Box w="full">
         <Header />
         <Statistics mt="4" />
+        <NodePerformanceOverview />
         <Filters />
         <UsersTable />
         <UserDialog />

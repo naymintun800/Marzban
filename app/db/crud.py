@@ -19,6 +19,8 @@ from app.db.models import (
     Node,
     NodeUsage,
     NodeUserUsage,
+    NodePerformanceMetric,
+    NodeConnectionLog,
     NotificationReminder,
     Proxy,
     ProxyHost,
@@ -1673,3 +1675,179 @@ def delete_resilient_node_group(db: Session, group_id: int) -> Optional[Resilien
     return db_group
 
 # --- End ResilientNodeGroup CRUD Operations ---
+
+
+# --- Node Performance Tracking Functions ---
+
+def record_node_performance(db: Session, node_id: int, response_time: float, success: bool, error_message: str = None) -> NodePerformanceMetric:
+    """
+    Records a performance metric for a node.
+
+    Args:
+        db (Session): Database session.
+        node_id (int): The node ID.
+        response_time (float): Response time in milliseconds.
+        success (bool): Whether the check was successful.
+        error_message (str, optional): Error message if failed.
+
+    Returns:
+        NodePerformanceMetric: The created performance metric.
+    """
+    metric = NodePerformanceMetric(
+        node_id=node_id,
+        response_time=response_time,
+        success=success,
+        error_message=error_message,
+        created_at=datetime.utcnow()
+    )
+    db.add(metric)
+
+    # Update node's aggregated performance data
+    node = db.query(Node).filter(Node.id == node_id).first()
+    if node:
+        # Calculate new averages based on recent metrics (last 24 hours)
+        recent_metrics = db.query(NodePerformanceMetric).filter(
+            NodePerformanceMetric.node_id == node_id,
+            NodePerformanceMetric.created_at >= datetime.utcnow() - timedelta(hours=24)
+        ).all()
+
+        if recent_metrics:
+            # Calculate average response time for successful checks only
+            successful_metrics = [m for m in recent_metrics if m.success]
+            if successful_metrics:
+                node.avg_response_time = sum(m.response_time for m in successful_metrics) / len(successful_metrics)
+
+            # Calculate success rate
+            node.success_rate = (sum(1 for m in recent_metrics if m.success) / len(recent_metrics)) * 100
+
+        node.last_performance_check = datetime.utcnow()
+
+    db.commit()
+    db.refresh(metric)
+    return metric
+
+
+def get_node_performance_metrics(db: Session, node_id: int, hours: int = 24) -> List[NodePerformanceMetric]:
+    """
+    Gets recent performance metrics for a node.
+
+    Args:
+        db (Session): Database session.
+        node_id (int): The node ID.
+        hours (int): Number of hours to look back (default: 24).
+
+    Returns:
+        List[NodePerformanceMetric]: List of performance metrics.
+    """
+    since = datetime.utcnow() - timedelta(hours=hours)
+    return db.query(NodePerformanceMetric).filter(
+        NodePerformanceMetric.node_id == node_id,
+        NodePerformanceMetric.created_at >= since
+    ).order_by(NodePerformanceMetric.created_at.desc()).all()
+
+
+def cleanup_old_performance_metrics(db: Session, days_to_keep: int = 7):
+    """
+    Cleans up old performance metrics to prevent database bloat.
+
+    Args:
+        db (Session): Database session.
+        days_to_keep (int): Number of days of metrics to keep (default: 7).
+    """
+    cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+    db.query(NodePerformanceMetric).filter(
+        NodePerformanceMetric.created_at < cutoff_date
+    ).delete()
+    db.commit()
+
+
+# --- Node Connection Tracking Functions ---
+
+def log_node_connection(db: Session, node_id: int, user_id: int, subscription_token: str = None,
+                       user_agent: str = None, client_ip: str = None) -> NodeConnectionLog:
+    """
+    Logs a new connection to a node.
+
+    Args:
+        db (Session): Database session.
+        node_id (int): The node ID.
+        user_id (int): The user ID.
+        subscription_token (str, optional): Subscription token to track shared subscriptions.
+        user_agent (str, optional): User agent string.
+        client_ip (str, optional): Client IP address.
+
+    Returns:
+        NodeConnectionLog: The created connection log.
+    """
+    connection_log = NodeConnectionLog(
+        node_id=node_id,
+        user_id=user_id,
+        subscription_token=subscription_token,
+        user_agent=user_agent,
+        client_ip=client_ip,
+        connected_at=datetime.utcnow()
+    )
+    db.add(connection_log)
+
+    # Increment active connections count
+    node = db.query(Node).filter(Node.id == node_id).first()
+    if node:
+        node.active_connections += 1
+        node.total_connections += 1
+
+    db.commit()
+    db.refresh(connection_log)
+    return connection_log
+
+
+def log_node_disconnection(db: Session, connection_log_id: int):
+    """
+    Logs a disconnection from a node.
+
+    Args:
+        db (Session): Database session.
+        connection_log_id (int): The connection log ID to update.
+    """
+    connection_log = db.query(NodeConnectionLog).filter(NodeConnectionLog.id == connection_log_id).first()
+    if connection_log and not connection_log.disconnected_at:
+        connection_log.disconnected_at = datetime.utcnow()
+
+        # Decrement active connections count
+        node = db.query(Node).filter(Node.id == connection_log.node_id).first()
+        if node and node.active_connections > 0:
+            node.active_connections -= 1
+
+        db.commit()
+
+
+def get_active_connections_count(db: Session, node_id: int) -> int:
+    """
+    Gets the current active connections count for a node.
+
+    Args:
+        db (Session): Database session.
+        node_id (int): The node ID.
+
+    Returns:
+        int: Number of active connections.
+    """
+    node = db.query(Node).filter(Node.id == node_id).first()
+    return node.active_connections if node else 0
+
+
+def cleanup_old_connection_logs(db: Session, days_to_keep: int = 30):
+    """
+    Cleans up old connection logs to prevent database bloat.
+
+    Args:
+        db (Session): Database session.
+        days_to_keep (int): Number of days of logs to keep (default: 30).
+    """
+    cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+    db.query(NodeConnectionLog).filter(
+        NodeConnectionLog.connected_at < cutoff_date
+    ).delete()
+    db.commit()
+
+
+# --- End Node Performance and Connection Tracking ---

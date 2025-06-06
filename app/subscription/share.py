@@ -1,9 +1,10 @@
 import base64
+import logging
 import random
 import secrets
 from collections import defaultdict
 from datetime import datetime as dt
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, List, Literal, Union, Optional
 
 from jdatetime import date as jd
@@ -12,6 +13,8 @@ from sqlalchemy.orm import Session
 from app import xray
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 from app.models.node import NodeStatus
+
+logger = logging.getLogger(__name__)
 
 from . import *
 
@@ -49,14 +52,15 @@ STATUS_TEXTS = {
 }
 
 
-def _select_node_by_strategy(active_nodes: list, strategy_hint: str, user_id: int):
+def _select_node_by_strategy(active_nodes: list, strategy_hint: str, user_id: int, db: Session):
     """
-    Select a node from active nodes based on the client strategy hint.
+    Select a node from active nodes based on the client strategy hint with enhanced server-side logic.
 
     Args:
         active_nodes: List of active nodes
         strategy_hint: Client strategy hint from resilient node group
         user_id: User ID for consistent selection
+        db: Database session for performance queries
 
     Returns:
         Selected node
@@ -79,28 +83,158 @@ def _select_node_by_strategy(active_nodes: list, strategy_hint: str, user_id: in
         strategy = strategy_hint
 
     if strategy == ClientStrategyHint.URL_TEST:
-        # URL_TEST: Hint that client should test speed and pick fastest
-        # Server-side: Give consistent node per user (client may override)
-        return active_nodes[user_id % len(active_nodes)]
+        # URL_TEST: Server-side performance-based selection
+        # Select from top-performing nodes based on response time and success rate
+        return _select_fastest_node(active_nodes, user_id)
 
     elif strategy == ClientStrategyHint.FALLBACK:
-        # FALLBACK: Hint that client should use primary/backup approach
-        # Server-side: Always return first node (primary)
-        return active_nodes[0]
+        # FALLBACK: Primary node with health-aware fallback
+        # Use first node if healthy, otherwise select best backup
+        return _select_fallback_node(active_nodes)
 
     elif strategy == ClientStrategyHint.LOAD_BALANCE:
-        # LOAD_BALANCE: Distribute users evenly across nodes
-        # Server-side: Round-robin distribution based on user ID
-        return active_nodes[user_id % len(active_nodes)]
+        # LOAD_BALANCE: Real-time load balancing based on active connections
+        # Select node with lowest current load
+        return _select_least_loaded_node(active_nodes, user_id)
 
     elif strategy == ClientStrategyHint.CLIENT_DEFAULT:
-        # CLIENT_DEFAULT: Let client use its default behavior
-        # Server-side: Consistent selection per user
-        return active_nodes[user_id % len(active_nodes)]
+        # CLIENT_DEFAULT: Smart consistent selection with performance awareness
+        # Consistent per user but avoid poorly performing nodes
+        return _select_consistent_node(active_nodes, user_id)
 
     else:  # NONE or unknown
         # No strategy hint - random selection each time
         return random.choice(active_nodes)
+
+
+def _select_fastest_node(active_nodes: list, user_id: int):
+    """
+    Select node based on performance metrics (response time and success rate).
+    Distributes users across top-performing nodes to avoid overloading the fastest one.
+    """
+    # Sort nodes by performance score (combination of response time and success rate)
+    def performance_score(node):
+        # Default values for nodes without performance data
+        response_time = node.avg_response_time or 1000.0  # Default to 1000ms
+        success_rate = node.success_rate or 50.0  # Default to 50%
+
+        # Lower response time is better, higher success rate is better
+        # Normalize and combine (success rate weight is higher)
+        time_score = max(0, 100 - (response_time / 10))  # 100ms = 90 points, 1000ms = 0 points
+        combined_score = (success_rate * 0.7) + (time_score * 0.3)
+        return combined_score
+
+    # Sort by performance score (highest first)
+    sorted_nodes = sorted(active_nodes, key=performance_score, reverse=True)
+
+    # Select from top 50% of nodes to distribute load
+    top_nodes_count = max(1, len(sorted_nodes) // 2)
+    top_nodes = sorted_nodes[:top_nodes_count]
+
+    # Distribute users across top nodes
+    return top_nodes[user_id % len(top_nodes)]
+
+
+def _select_fallback_node(active_nodes: list):
+    """
+    Select primary node if healthy, otherwise select best backup.
+    """
+    primary_node = active_nodes[0]
+
+    # Check if primary node is healthy (good success rate)
+    if primary_node.success_rate is None or primary_node.success_rate >= 80.0:
+        return primary_node
+
+    # Primary is unhealthy, select best backup from remaining nodes
+    if len(active_nodes) > 1:
+        backup_nodes = active_nodes[1:]
+        # Select backup with highest success rate
+        best_backup = max(backup_nodes, key=lambda n: n.success_rate or 0.0)
+        return best_backup
+
+    # No backup available, return primary anyway
+    return primary_node
+
+
+def _select_least_loaded_node(active_nodes: list, user_id: int):
+    """
+    Select node with lowest current active connections.
+    Uses user_id for tie-breaking to maintain some consistency.
+    """
+    # Calculate load score considering both connections and performance
+    def load_score(node):
+        # Base load from active connections
+        connection_load = node.active_connections
+
+        # Penalty for poor performance (higher response time = higher load)
+        performance_penalty = 0
+        if node.avg_response_time:
+            # Add penalty: 1 point per 100ms above 100ms
+            performance_penalty = max(0, (node.avg_response_time - 100) / 100)
+
+        # Penalty for poor success rate
+        if node.success_rate is not None and node.success_rate < 90:
+            performance_penalty += (90 - node.success_rate) / 10
+
+        return connection_load + performance_penalty
+
+    # Sort by load score (lowest first)
+    sorted_nodes = sorted(active_nodes, key=load_score)
+
+    # Find nodes with minimum load score
+    min_score = load_score(sorted_nodes[0])
+    least_loaded_nodes = [n for n in sorted_nodes if abs(load_score(n) - min_score) < 1.0]
+
+    # If multiple nodes have similar load, use user_id for consistent selection
+    return least_loaded_nodes[user_id % len(least_loaded_nodes)]
+
+
+def _select_consistent_node(active_nodes: list, user_id: int):
+    """
+    Consistent selection per user but avoid poorly performing nodes.
+    Filters out nodes with very poor performance before applying consistent selection.
+    Also considers estimated device count for better distribution.
+    """
+    # Filter out nodes with very poor performance (success rate < 30%)
+    healthy_nodes = [n for n in active_nodes if n.success_rate is None or n.success_rate >= 30.0]
+
+    # If all nodes are unhealthy, use all nodes anyway
+    if not healthy_nodes:
+        healthy_nodes = active_nodes
+
+    # Try to estimate device count for this user to improve distribution
+    try:
+        from app.services.connection_tracker import get_estimated_device_count
+        device_count = get_estimated_device_count(user_id)
+
+        # If multiple devices detected, use a different distribution strategy
+        if device_count > 1:
+            # Distribute devices across different nodes
+            # Use a hash of user_id + device_index for better distribution
+            base_selection = user_id % len(healthy_nodes)
+            # Add some variation based on time to help distribute multiple devices
+            time_variation = (int(datetime.utcnow().timestamp()) // 3600) % len(healthy_nodes)  # Changes hourly
+            selected_index = (base_selection + time_variation) % len(healthy_nodes)
+            return healthy_nodes[selected_index]
+    except Exception:
+        # Fall back to simple consistent selection if device counting fails
+        pass
+
+    # Apply consistent selection to healthy nodes
+    return healthy_nodes[user_id % len(healthy_nodes)]
+
+
+def _get_subscription_hash(user_id: int, subscription_token: str = None) -> int:
+    """
+    Generate a hash for subscription-based distribution.
+    This helps distribute different devices using the same subscription.
+    """
+    import hashlib
+
+    # Create a hash based on user_id and subscription_token
+    hash_input = f"{user_id}_{subscription_token or ''}"
+    hash_value = int(hashlib.md5(hash_input.encode()).hexdigest()[:8], 16)
+    return hash_value
 
 
 def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool, db: Session, user: "UserResponse") -> list:
@@ -348,10 +482,21 @@ def process_inbounds_and_tags(
                             selected_node = _select_node_by_strategy(
                                 active_nodes,
                                 resilient_group.client_strategy_hint,
-                                user.id
+                                user.id,
+                                db
                             )
                             # Use the selected node's address instead of host address
                             node_address = selected_node.address
+
+                            # Track this node selection for connection monitoring
+                            # Note: We can't track the actual connection here since this is just
+                            # subscription generation, but we can log the node assignment
+                            try:
+                                from app.services.connection_tracker import connection_tracker
+                                # This helps us understand which nodes are being assigned to users
+                                logger.debug(f"Assigned user {user.id} to node {selected_node.id} ({selected_node.name}) via strategy {resilient_group.client_strategy_hint}")
+                            except Exception:
+                                pass  # Don't fail subscription generation if tracking fails
                         else:
                             # No active nodes, fall back to host address
                             node_address = None

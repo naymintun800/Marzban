@@ -33,6 +33,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { updateThemeColor } from "utils/themeColor";
 import { Language } from "./Language";
+import { NodeHealthIndicator } from "./NodeHealthIndicator";
 import useGetUser from "hooks/useGetUser";
 
 type HeaderProps = {
@@ -124,9 +125,12 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
       }}
       position="relative"
     >
-      <Text as="h1" fontWeight="semibold" fontSize="2xl">
-        {t("users")}
-      </Text>
+      <HStack spacing={4}>
+        <Text as="h1" fontWeight="semibold" fontSize="2xl">
+          {t("users")}
+        </Text>
+        {isSudo() && <NodeHealthIndicator />}
+      </HStack>
       {showDonationNotif && (
         <NotificationCircle top="0" right="0" zIndex={9999} />
       )}
