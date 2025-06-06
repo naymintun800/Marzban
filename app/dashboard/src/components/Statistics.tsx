@@ -10,7 +10,6 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "react-query";
 import { fetch } from "service/http";
 import { formatBytes, numberWithCommas } from "utils/formatByte";
-import { NodePerformanceCard } from "./NodePerformanceCard";
 
 const TotalUsersIcon = chakra(UsersIcon, {
   baseStyle: {
@@ -191,7 +190,6 @@ export const Statistics: FC<BoxProps> = (props) => {
         }
         icon={<MemoryIcon />}
       />
-      <NodePerformanceCard />
     </HStack>
   );
 };

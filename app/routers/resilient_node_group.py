@@ -2,8 +2,6 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
-from datetime import datetime, timedelta
 
 from app.db import crud
 from app.db import get_db
@@ -13,7 +11,6 @@ from app.models.resilient_node_group import (
     ResilientNodeGroupResponse,
     ResilientNodeGroupUpdate,
 )
-from app.models.node import NodeStatus
 from app.utils import responses
 
 router = APIRouter(tags=["Resilient Node Groups"], responses={401: responses._401, 403: responses._403})
@@ -178,139 +175,3 @@ def delete_resilient_node_group(
     
     # Return 204 No Content on successful deletion
     return
-
-
-# --- Metrics and Monitoring Endpoints ---
-
-@router.get(
-    "/api/resilient-node-groups/metrics/overview",
-    summary="Get Resilient Node Groups Overview Metrics"
-)
-def get_resilient_node_groups_overview(
-    db: Session = Depends(get_db),
-    admin: Admin = Depends(Admin.check_sudo_admin)
-) -> Dict[str, Any]:
-    """
-    Get overview metrics for all resilient node groups and their nodes.
-    """
-    # Get all groups
-    groups = crud.get_all_resilient_node_groups(db)
-
-    # Get all nodes
-    all_nodes = crud.get_nodes(db)
-    connected_nodes = [n for n in all_nodes if n.status == NodeStatus.connected]
-
-    # Calculate metrics (using default values until performance tracking is enabled)
-    total_groups = len(groups)
-    total_nodes_in_groups = sum(len(group.nodes) for group in groups)
-    healthy_nodes = len(connected_nodes)  # Assume all connected nodes are healthy for now
-    total_active_connections = 0  # Default until tracking is enabled
-
-    return {
-        "total_groups": total_groups,
-        "total_nodes": len(all_nodes),
-        "connected_nodes": len(connected_nodes),
-        "nodes_in_groups": total_nodes_in_groups,
-        "healthy_nodes": healthy_nodes,
-        "total_active_connections": total_active_connections,
-        "avg_response_time": None,  # Will be available after performance tracking is enabled
-        "avg_success_rate": None,   # Will be available after performance tracking is enabled
-    }
-
-
-@router.get(
-    "/api/resilient-node-groups/metrics/performance",
-    summary="Get Node Performance Metrics"
-)
-def get_node_performance_metrics(
-    hours: int = 24,
-    db: Session = Depends(get_db),
-    admin: Admin = Depends(Admin.check_sudo_admin)
-) -> Dict[str, Any]:
-    """
-    Get performance metrics for all nodes in resilient groups.
-    """
-    # Get all groups with their nodes
-    groups = crud.get_all_resilient_node_groups(db)
-
-    performance_data = []
-
-    for group in groups:
-        group_data = {
-            "group_id": group.id,
-            "group_name": group.name,
-            "strategy": group.client_strategy_hint.value,
-            "nodes": []
-        }
-
-        for node in group.nodes:
-            if node.status == NodeStatus.connected:
-                node_data = {
-                    "node_id": node.id,
-                    "node_name": node.name,
-                    "status": node.status.value,
-                    "avg_response_time": None,  # Will be available after performance tracking
-                    "success_rate": None,      # Will be available after performance tracking
-                    "active_connections": 0,   # Will be available after performance tracking
-                    "total_connections": 0,    # Will be available after performance tracking
-                    "last_check": None,        # Will be available after performance tracking
-                    "recent_checks": 0,        # Will be available after performance tracking
-                }
-                group_data["nodes"].append(node_data)
-
-        performance_data.append(group_data)
-
-    return {
-        "groups": performance_data,
-        "timestamp": datetime.utcnow().isoformat(),
-        "period_hours": hours
-    }
-
-
-@router.get(
-    "/api/resilient-node-groups/{group_id}/metrics",
-    summary="Get Specific Group Metrics"
-)
-def get_group_metrics(
-    group_id: int,
-    hours: int = 24,
-    db: Session = Depends(get_db),
-    admin: Admin = Depends(Admin.check_sudo_admin)
-) -> Dict[str, Any]:
-    """
-    Get detailed metrics for a specific resilient node group.
-    """
-    group = crud.get_resilient_node_group(db, group_id)
-    if not group:
-        raise HTTPException(status_code=404, detail="Resilient Node Group not found")
-
-    # Calculate group statistics
-    connected_nodes = [n for n in group.nodes if n.status == NodeStatus.connected]
-
-    # Node details (simplified until performance tracking is enabled)
-    nodes_data = []
-    for node in group.nodes:
-        node_data = {
-            "node_id": node.id,
-            "node_name": node.name,
-            "status": node.status.value,
-            "avg_response_time": None,        # Will be available after performance tracking
-            "success_rate": None,             # Will be available after performance tracking
-            "active_connections": 0,          # Will be available after performance tracking
-            "total_connections": 0,           # Will be available after performance tracking
-            "performance_trend": "insufficient_data",
-            "recent_metrics_count": 0,
-            "last_check": None,
-        }
-        nodes_data.append(node_data)
-
-    return {
-        "group_id": group.id,
-        "group_name": group.name,
-        "strategy": group.client_strategy_hint.value,
-        "total_nodes": len(group.nodes),
-        "connected_nodes": len(connected_nodes),
-        "total_active_connections": 0,  # Will be available after performance tracking
-        "nodes": nodes_data,
-        "timestamp": datetime.utcnow().isoformat(),
-    }
