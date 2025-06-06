@@ -334,16 +334,62 @@ class Node(Base):
         back_populates="nodes"
     )
 
-    # Performance tracking fields
-    avg_response_time = Column(Float, nullable=True, default=None)  # Average response time in milliseconds
-    success_rate = Column(Float, nullable=True, default=None)  # Success rate percentage (0-100)
-    last_performance_check = Column(DateTime, nullable=True, default=None)
-    active_connections = Column(Integer, nullable=False, default=0)  # Current active connections count
-    total_connections = Column(BigInteger, nullable=False, default=0)  # Total connections served
+    # Performance tracking fields (added later, may not exist in older databases)
+    # These will be added via manual SQL script or migration
+    # avg_response_time = Column(Float, nullable=True, default=None)
+    # success_rate = Column(Float, nullable=True, default=None)
+    # last_performance_check = Column(DateTime, nullable=True, default=None)
+    # active_connections = Column(Integer, nullable=False, default=0)
+    # total_connections = Column(BigInteger, nullable=False, default=0)
 
-    # Performance history relationships
-    performance_metrics = relationship("NodePerformanceMetric", back_populates="node", cascade="all, delete-orphan")
-    connection_logs = relationship("NodeConnectionLog", back_populates="node", cascade="all, delete-orphan")
+    # Performance history relationships (commented out until tables exist)
+    # performance_metrics = relationship("NodePerformanceMetric", back_populates="node", cascade="all, delete-orphan")
+    # connection_logs = relationship("NodeConnectionLog", back_populates="node", cascade="all, delete-orphan")
+
+    @property
+    def avg_response_time(self):
+        """Backward compatible property for avg_response_time"""
+        return getattr(self, '_avg_response_time', None)
+
+    @avg_response_time.setter
+    def avg_response_time(self, value):
+        self._avg_response_time = value
+
+    @property
+    def success_rate(self):
+        """Backward compatible property for success_rate"""
+        return getattr(self, '_success_rate', None)
+
+    @success_rate.setter
+    def success_rate(self, value):
+        self._success_rate = value
+
+    @property
+    def last_performance_check(self):
+        """Backward compatible property for last_performance_check"""
+        return getattr(self, '_last_performance_check', None)
+
+    @last_performance_check.setter
+    def last_performance_check(self, value):
+        self._last_performance_check = value
+
+    @property
+    def active_connections(self):
+        """Backward compatible property for active_connections"""
+        return getattr(self, '_active_connections', 0)
+
+    @active_connections.setter
+    def active_connections(self, value):
+        self._active_connections = value
+
+    @property
+    def total_connections(self):
+        """Backward compatible property for total_connections"""
+        return getattr(self, '_total_connections', 0)
+
+    @total_connections.setter
+    def total_connections(self, value):
+        self._total_connections = value
 
 
 class NodeUserUsage(Base):
@@ -387,34 +433,35 @@ class NotificationReminder(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-class NodePerformanceMetric(Base):
-    __tablename__ = "node_performance_metrics"
-    __table_args__ = (
-        UniqueConstraint('created_at', 'node_id'),
-    )
+# Temporarily commented out until database tables are created
+# class NodePerformanceMetric(Base):
+#     __tablename__ = "node_performance_metrics"
+#     __table_args__ = (
+#         UniqueConstraint('created_at', 'node_id'),
+#     )
 
-    id = Column(Integer, primary_key=True)
-    node_id = Column(Integer, ForeignKey("nodes.id"), nullable=False)
-    node = relationship("Node", back_populates="performance_metrics")
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    response_time = Column(Float, nullable=False)  # Response time in milliseconds
-    success = Column(Boolean, nullable=False)  # Whether the check was successful
-    error_message = Column(String(512), nullable=True)  # Error message if failed
+#     id = Column(Integer, primary_key=True)
+#     node_id = Column(Integer, ForeignKey("nodes.id"), nullable=False)
+#     node = relationship("Node", back_populates="performance_metrics")
+#     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+#     response_time = Column(Float, nullable=False)  # Response time in milliseconds
+#     success = Column(Boolean, nullable=False)  # Whether the check was successful
+#     error_message = Column(String(512), nullable=True)  # Error message if failed
 
 
-class NodeConnectionLog(Base):
-    __tablename__ = "node_connection_logs"
+# class NodeConnectionLog(Base):
+#     __tablename__ = "node_connection_logs"
 
-    id = Column(Integer, primary_key=True)
-    node_id = Column(Integer, ForeignKey("nodes.id"), nullable=False)
-    node = relationship("Node", back_populates="connection_logs")
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    user = relationship("User")
-    subscription_token = Column(String(256), nullable=True)  # To track same subscription usage
-    connected_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    disconnected_at = Column(DateTime, nullable=True)
-    user_agent = Column(String(512), nullable=True)  # To help identify different devices
-    client_ip = Column(String(45), nullable=True)  # IPv4 or IPv6
+#     id = Column(Integer, primary_key=True)
+#     node_id = Column(Integer, ForeignKey("nodes.id"), nullable=False)
+#     node = relationship("Node", back_populates="connection_logs")
+#     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+#     user = relationship("User")
+#     subscription_token = Column(String(256), nullable=True)  # To track same subscription usage
+#     connected_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+#     disconnected_at = Column(DateTime, nullable=True)
+#     user_agent = Column(String(512), nullable=True)  # To help identify different devices
+#     client_ip = Column(String(45), nullable=True)  # IPv4 or IPv6
 
 
 class ResilientNodeGroup(Base):

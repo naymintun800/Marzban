@@ -200,18 +200,11 @@ def get_resilient_node_groups_overview(
     all_nodes = crud.get_nodes(db)
     connected_nodes = [n for n in all_nodes if n.status == NodeStatus.connected]
 
-    # Calculate metrics
+    # Calculate metrics (using default values until performance tracking is enabled)
     total_groups = len(groups)
     total_nodes_in_groups = sum(len(group.nodes) for group in groups)
-    healthy_nodes = len([n for n in connected_nodes if n.success_rate is None or n.success_rate >= 80])
-    total_active_connections = sum(n.active_connections for n in connected_nodes)
-
-    # Calculate average performance
-    performance_nodes = [n for n in connected_nodes if n.avg_response_time is not None]
-    avg_response_time = sum(n.avg_response_time for n in performance_nodes) / len(performance_nodes) if performance_nodes else None
-
-    success_rate_nodes = [n for n in connected_nodes if n.success_rate is not None]
-    avg_success_rate = sum(n.success_rate for n in success_rate_nodes) / len(success_rate_nodes) if success_rate_nodes else None
+    healthy_nodes = len(connected_nodes)  # Assume all connected nodes are healthy for now
+    total_active_connections = 0  # Default until tracking is enabled
 
     return {
         "total_groups": total_groups,
@@ -220,8 +213,8 @@ def get_resilient_node_groups_overview(
         "nodes_in_groups": total_nodes_in_groups,
         "healthy_nodes": healthy_nodes,
         "total_active_connections": total_active_connections,
-        "avg_response_time": round(avg_response_time, 1) if avg_response_time else None,
-        "avg_success_rate": round(avg_success_rate, 1) if avg_success_rate else None,
+        "avg_response_time": None,  # Will be available after performance tracking is enabled
+        "avg_success_rate": None,   # Will be available after performance tracking is enabled
     }
 
 
@@ -252,19 +245,16 @@ def get_node_performance_metrics(
 
         for node in group.nodes:
             if node.status == NodeStatus.connected:
-                # Get recent performance metrics
-                recent_metrics = crud.get_node_performance_metrics(db, node.id, hours)
-
                 node_data = {
                     "node_id": node.id,
                     "node_name": node.name,
                     "status": node.status.value,
-                    "avg_response_time": node.avg_response_time,
-                    "success_rate": node.success_rate,
-                    "active_connections": node.active_connections,
-                    "total_connections": node.total_connections,
-                    "last_check": node.last_performance_check.isoformat() if node.last_performance_check else None,
-                    "recent_checks": len(recent_metrics),
+                    "avg_response_time": None,  # Will be available after performance tracking
+                    "success_rate": None,      # Will be available after performance tracking
+                    "active_connections": 0,   # Will be available after performance tracking
+                    "total_connections": 0,    # Will be available after performance tracking
+                    "last_check": None,        # Will be available after performance tracking
+                    "recent_checks": 0,        # Will be available after performance tracking
                 }
                 group_data["nodes"].append(node_data)
 
@@ -296,32 +286,21 @@ def get_group_metrics(
 
     # Calculate group statistics
     connected_nodes = [n for n in group.nodes if n.status == NodeStatus.connected]
-    total_connections = sum(n.active_connections for n in connected_nodes)
 
-    # Node details with performance history
+    # Node details (simplified until performance tracking is enabled)
     nodes_data = []
     for node in group.nodes:
-        recent_metrics = crud.get_node_performance_metrics(db, node.id, hours)
-
-        # Calculate trends
-        if len(recent_metrics) >= 2:
-            recent_avg = sum(m.response_time for m in recent_metrics[:5] if m.success) / max(1, len([m for m in recent_metrics[:5] if m.success]))
-            older_avg = sum(m.response_time for m in recent_metrics[-5:] if m.success) / max(1, len([m for m in recent_metrics[-5:] if m.success]))
-            trend = "improving" if recent_avg < older_avg else "degrading" if recent_avg > older_avg else "stable"
-        else:
-            trend = "insufficient_data"
-
         node_data = {
             "node_id": node.id,
             "node_name": node.name,
             "status": node.status.value,
-            "avg_response_time": node.avg_response_time,
-            "success_rate": node.success_rate,
-            "active_connections": node.active_connections,
-            "total_connections": node.total_connections,
-            "performance_trend": trend,
-            "recent_metrics_count": len(recent_metrics),
-            "last_check": node.last_performance_check.isoformat() if node.last_performance_check else None,
+            "avg_response_time": None,        # Will be available after performance tracking
+            "success_rate": None,             # Will be available after performance tracking
+            "active_connections": 0,          # Will be available after performance tracking
+            "total_connections": 0,           # Will be available after performance tracking
+            "performance_trend": "insufficient_data",
+            "recent_metrics_count": 0,
+            "last_check": None,
         }
         nodes_data.append(node_data)
 
@@ -331,7 +310,7 @@ def get_group_metrics(
         "strategy": group.client_strategy_hint.value,
         "total_nodes": len(group.nodes),
         "connected_nodes": len(connected_nodes),
-        "total_active_connections": total_connections,
+        "total_active_connections": 0,  # Will be available after performance tracking
         "nodes": nodes_data,
         "timestamp": datetime.utcnow().isoformat(),
     }
