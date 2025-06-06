@@ -84,10 +84,9 @@ export const NodePerformanceOverview: FC = () => {
                   p={3}
                   borderRadius="md"
                   bg="gray.50"
-                  _dark={{ bg: "gray.700" }}
+                  _dark={{ bg: "gray.700", borderColor: "gray.600" }}
                   borderWidth="1px"
                   borderColor="gray.200"
-                  _dark={{ borderColor: "gray.600" }}
                 >
                   <VStack spacing={2} align="stretch">
                     <HStack justify="space-between">
