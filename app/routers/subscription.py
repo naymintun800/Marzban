@@ -8,7 +8,7 @@ from app.db import Session, crud, get_db
 from app.db.models import User  # Import the SQLAlchemy User model
 from app.dependencies import get_validated_sub, validate_dates, get_validated_custom_sub_user
 from app.models.user import SubscriptionUserResponse, UserResponse
-from app.subscription.share import encode_title, generate_subscription
+from app.subscription.share import encode_title, generate_subscription, setup_format_variables
 from app.templates import render_template
 from config import (
     SUB_PROFILE_TITLE,
@@ -96,7 +96,7 @@ def user_subscription_custom_path(
         "content-disposition": f'attachment; filename="{user.username}"',
         "profile-web-page-url": str(request.url),
         "support-url": SUB_SUPPORT_URL,
-        "profile-title": encode_title(SUB_PROFILE_TITLE),
+        "profile-title": encode_title(SUB_PROFILE_TITLE, setup_format_variables(user.__dict__)),
         "profile-update-interval": SUB_UPDATE_INTERVAL,
         "subscription-userinfo": "; ".join(
             f"{key}={val}"
@@ -180,7 +180,7 @@ def user_subscription(
         "content-disposition": f'attachment; filename="{user.username}"',
         "profile-web-page-url": str(request.url),
         "support-url": SUB_SUPPORT_URL,
-        "profile-title": encode_title(SUB_PROFILE_TITLE),
+        "profile-title": encode_title(SUB_PROFILE_TITLE, setup_format_variables(user.__dict__)),
         "profile-update-interval": SUB_UPDATE_INTERVAL,
         "subscription-userinfo": "; ".join(
             f"{key}={val}"
@@ -285,7 +285,7 @@ def user_subscription_with_client_type(
         "content-disposition": f'attachment; filename="{user.username}"',
         "profile-web-page-url": str(request.url),
         "support-url": SUB_SUPPORT_URL,
-        "profile-title": encode_title(SUB_PROFILE_TITLE),
+        "profile-title": encode_title(SUB_PROFILE_TITLE, setup_format_variables(user.__dict__)),
         "profile-update-interval": SUB_UPDATE_INTERVAL,
         "subscription-userinfo": "; ".join(
             f"{key}={val}"
@@ -347,7 +347,7 @@ def user_custom_subscription_with_client_type(
         "content-disposition": f'attachment; filename="{user.username}"',
         "profile-web-page-url": str(request.url),
         "support-url": SUB_SUPPORT_URL,
-        "profile-title": encode_title(SUB_PROFILE_TITLE),
+        "profile-title": encode_title(SUB_PROFILE_TITLE, setup_format_variables(user.__dict__)),
         "profile-update-interval": SUB_UPDATE_INTERVAL,
         "subscription-userinfo": "; ".join(
             f"{key}={val}"

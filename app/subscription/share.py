@@ -410,6 +410,7 @@ def setup_format_variables(extra_data: dict) -> dict:
             "SERVER_IP": SERVER_IP,
             "SERVER_IPV6": SERVER_IPV6,
             "USERNAME": extra_data.get("username", "{USERNAME}"),
+            "USER_NOTE": extra_data.get("note", ""),
             "DATA_USAGE": readable_size(extra_data.get("used_traffic")),
             "DATA_LIMIT": data_limit,
             "DATA_LEFT": data_left,
@@ -569,5 +570,7 @@ def process_inbounds_and_tags(
     return conf.render(reverse=reverse)
 
 
-def encode_title(text: str) -> str:
+def encode_title(text: str, format_variables: dict = None) -> str:
+    if format_variables:
+        text = text.format_map(format_variables)
     return f"base64:{base64.b64encode(text.encode()).decode()}"
