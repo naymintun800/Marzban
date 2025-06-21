@@ -17,35 +17,20 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Check if column already exists before adding it
-    conn = op.get_bind()
-    inspector = sa.inspect(conn)
-    columns = [col['name'] for col in inspector.get_columns('hosts')]
-
-    if 'resilient_node_group_id' not in columns:
-        # Add resilient_node_group_id column to hosts table
-        op.add_column('hosts', sa.Column('resilient_node_group_id', sa.Integer(), nullable=True))
-
-        # Add foreign key constraint
-        op.create_foreign_key(
+    with op.batch_alter_table('hosts', schema=None) as batch_op:
+        batch_op.add_column(sa.Column('resilient_node_group_id', sa.Integer(), nullable=True))
+        batch_op.create_foreign_key(
             'fk_hosts_resilient_node_group_id',
-            'hosts',
             'resilient_node_groups',
             ['resilient_node_group_id'],
             ['id'],
             ondelete='SET NULL'
         )
-
-        # Add index for better query performance
-        op.create_index('ix_hosts_resilient_node_group_id', 'hosts', ['resilient_node_group_id'])
+        batch_op.create_index('ix_hosts_resilient_node_group_id', ['resilient_node_group_id'])
 
 
 def downgrade() -> None:
-    # Drop index
-    op.drop_index('ix_hosts_resilient_node_group_id', table_name='hosts')
-    
-    # Drop foreign key constraint
-    op.drop_constraint('fk_hosts_resilient_node_group_id', 'hosts', type_='foreignkey')
-    
-    # Drop column
-    op.drop_column('hosts', 'resilient_node_group_id')
+    with op.batch_alter_table('hosts', schema=None) as batch_op:
+        batch_op.drop_index('ix_hosts_resilient_node_group_id')
+        batch_op.drop_constraint('fk_hosts_resilient_node_group_id', type_='foreignkey')
+        batch_op.drop_column('resilient_node_group_id')
