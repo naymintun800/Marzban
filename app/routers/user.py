@@ -731,7 +731,8 @@ async def import_hiddify_users(
                 # For other names (no leading number + space, or non-Latin etc.)
                 # Original Hiddify name becomes Marzban note. Marzban username is generated.
                 marzban_note = original_hiddify_name if original_hiddify_name else f"Imported Hiddify user {h_uuid[:8]}"
-                base_gen_username = f"h_user_{h_uuid[:8]}" # Generic base for generation
+                # Use full UUID to ensure uniqueness across multiple imports
+                base_gen_username = f"h_user_{h_uuid.replace('-', '')[:12]}" # Use more of the UUID for uniqueness
                 marzban_username = generate_unique_marzban_username(db, base_gen_username, h_uuid)
         else: # Direct username attempt (smart parsing OFF)
             if original_hiddify_name:
