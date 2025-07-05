@@ -19,7 +19,6 @@ import {
   ModalHeader,
   ModalOverlay,
   Progress,
-  Select,
   Spinner,
   Text,
   VStack,
@@ -27,7 +26,6 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { ArrowUpTrayIcon } from "@heroicons/react/24/outline";
-import { XTLSFlows } from "constants/Proxies";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useDashboard } from "contexts/DashboardContext";
 import { FC, useRef, useState, useEffect } from "react";
@@ -74,7 +72,10 @@ const getDefaultValues = (): FormType => ({
   selected_protocols: [],
   inbounds: {},
   proxies: {
-    vless: { flow: "xtls-rprx-vision" },
+    vless: { id: "", flow: "" },
+    vmess: { id: "" },
+    trojan: { password: "" },
+    shadowsocks: { password: "", method: "chacha20-ietf-poly1305" },
   },
 });
 
@@ -94,8 +95,6 @@ export const HiddifyImportModal: FC = () => {
     resolver: zodResolver(HiddifyImportSchema),
     defaultValues: getDefaultValues(),
   });
-
-  const selectedProtocols = form.watch("selected_protocols");
 
   // Check for imported users when modal opens
   useEffect(() => {
@@ -485,29 +484,6 @@ export const HiddifyImportModal: FC = () => {
                       {form.formState.errors.selected_protocols?.message}
                     </FormErrorMessage>
                   </FormControl>
-                  {selectedProtocols.includes("vless") && (
-                    <FormControl>
-                      <FormLabel>{t("userDialog.flow")}</FormLabel>
-                      <Controller
-                        name="proxies.vless.flow"
-                        control={form.control}
-                        render={({ field }) => (
-                          <Select
-                            {...field}
-                            size="sm"
-                            borderRadius="6px"
-                            disabled={isImporting}
-                          >
-                            {XTLSFlows.map((flow) => (
-                              <option key={flow.value} value={flow.value}>
-                                {flow.title}
-                              </option>
-                            ))}
-                          </Select>
-                        )}
-                      />
-                    </FormControl>
-                  )}
                 </GridItem>
               </Grid>
             </ModalBody>

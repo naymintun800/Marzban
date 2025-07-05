@@ -569,6 +569,8 @@ async def import_hiddify_users(
     admin: Admin = Depends(Admin.get_current),
     set_unlimited_expire: bool = Form(False),
     enable_smart_username_parsing: bool = Form(True),
+    proxies: str = Form("{}"),  # Add proxies parameter to receive proxy settings
+    inbounds: str = Form("{}"),  # Add inbounds parameter to receive inbound settings
 ):
     """
     Import users from a Hiddify backup JSON file.
@@ -577,8 +579,10 @@ async def import_hiddify_users(
     - **set_unlimited_expire**: If true, all users will have `expire` set to 0.
     - **enable_smart_username_parsing**: If true, use smart parsing for username and note.
     - **selected_protocols**: JSON string of protocols (e.g., '["vless", "vmess"]') to enable for imported users.
+    - **proxies**: JSON string of proxy settings (e.g., '{"vless": {"flow": "xtls-rprx-vision"}}').
+    - **inbounds**: JSON string of inbound settings.
     """
-    
+
     # Parse the protocols JSON string
     try:
         protocol_list = json.loads(selected_protocols)
@@ -586,7 +590,23 @@ async def import_hiddify_users(
             raise ValueError("Protocols must be a list")
     except (json.JSONDecodeError, ValueError) as e:
         raise HTTPException(status_code=400, detail=f"Invalid protocols format: {str(e)}")
-    
+
+    # Parse the proxies JSON string
+    try:
+        proxies_dict = json.loads(proxies)
+        if not isinstance(proxies_dict, dict):
+            raise ValueError("Proxies must be a dictionary")
+    except (json.JSONDecodeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid proxies format: {str(e)}")
+
+    # Parse the inbounds JSON string
+    try:
+        inbounds_dict = json.loads(inbounds)
+        if not isinstance(inbounds_dict, dict):
+            raise ValueError("Inbounds must be a dictionary")
+    except (json.JSONDecodeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid inbounds format: {str(e)}")
+
     # Create config object for internal use
     config = HiddifyImportConfig(
         set_unlimited_expire=set_unlimited_expire,
@@ -665,10 +685,29 @@ async def import_hiddify_users(
             continue
 
         # Initialize UserCreate fields
+        # Build proxies dict with settings from frontend
+        user_proxies = {}
+        for protocol in config.protocols:
+            if protocol in proxies_dict and proxies_dict[protocol]:
+                # Use proxy settings from frontend
+                user_proxies[protocol] = proxies_dict[protocol].copy()
+            else:
+                # Use empty dict as default
+                user_proxies[protocol] = {}
+
+        # Build inbounds dict with settings from frontend or defaults
+        user_inbounds = {}
+        if inbounds_dict:
+            # Use inbounds from frontend
+            for protocol in config.protocols:
+                if protocol in inbounds_dict:
+                    user_inbounds[protocol] = inbounds_dict[protocol]
+        # If no inbounds specified, Marzban will use defaults based on selected proxies
+
         user_create_data = {
             "username": "", # Will be set by parsing logic
-            "proxies": {protocol: {} for protocol in config.protocols},
-            "inbounds": {}, # Marzban will use default inbounds based on selected proxies
+            "proxies": user_proxies,
+            "inbounds": user_inbounds,
             "status": UserStatus.active, # Default, will be mapped
             "data_limit": 0, # Default, will be mapped
             "data_limit_reset_strategy": UserDataLimitResetStrategy.no_reset, # Default, will be mapped
