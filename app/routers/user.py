@@ -608,6 +608,12 @@ async def import_hiddify_users(
     except (json.JSONDecodeError, ValueError) as e:
         raise HTTPException(status_code=400, detail=f"Invalid inbounds format: {str(e)}")
 
+    # Generate a unique batch ID for this import session
+    import time
+    import secrets
+    batch_id = f"{int(time.time())}{secrets.token_hex(2)}"  # timestamp + 4 random chars
+    logger.info(f"Starting Hiddify import batch: {batch_id}")
+
     # Create config object for internal use
     config = HiddifyImportConfig(
         set_unlimited_expire=set_unlimited_expire,
@@ -686,10 +692,13 @@ async def import_hiddify_users(
             continue
 
         # Check if user with this custom_uuid already exists
+        logger.info(f"Checking for existing user with UUID: {h_uuid}")
         existing_user = crud.get_user_by_custom_uuid(db, h_uuid)
         if existing_user:
-            logger.info(f"Skipping user '{original_hiddify_name}' (UUID: {h_uuid}) - already exists as '{existing_user.username}'")
+            logger.info(f"SKIPPING user '{original_hiddify_name}' (UUID: {h_uuid}) - already exists as '{existing_user.username}'")
             continue  # Skip this user, don't count as failed
+        else:
+            logger.info(f"No existing user found with UUID: {h_uuid}, proceeding with import")
 
         # Initialize UserCreate fields
         # Build proxies dict with settings from frontend
@@ -737,8 +746,9 @@ async def import_hiddify_users(
                 # For other names (no leading number + space, or non-Latin etc.)
                 # Original Hiddify name becomes Marzban note. Marzban username is generated.
                 marzban_note = original_hiddify_name if original_hiddify_name else f"Imported Hiddify user {h_uuid[:8]}"
-                # Use full UUID to ensure uniqueness across multiple imports
-                base_gen_username = f"h_user_{h_uuid.replace('-', '')[:12]}" # Use more of the UUID for uniqueness
+                # Use batch_id + UUID to ensure absolute uniqueness across multiple imports
+                uuid_part = h_uuid.replace('-', '')[:8]  # First 8 chars of UUID without dashes
+                base_gen_username = f"h_{batch_id[-8:]}_{uuid_part}"  # Use last 8 chars of batch_id
                 marzban_username = generate_unique_marzban_username(db, base_gen_username, h_uuid)
         else: # Direct username attempt (smart parsing OFF)
             if original_hiddify_name:
