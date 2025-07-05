@@ -887,9 +887,27 @@ async def import_hiddify_users(
             if created_db_user:
                 successful_imports += 1
                 logger.info(f"Successfully imported Hiddify user '{original_hiddify_name}' as Marzban user '{created_db_user.username}' (UUID: {h_uuid})")
+
+                # Refresh the user object to ensure it's properly attached to the session
+                db.refresh(created_db_user)
+
+                # Create a detached copy for background tasks to avoid session issues
+                user_data = {
+                    "id": created_db_user.id,
+                    "username": created_db_user.username,
+                    "proxies": created_db_user.proxies,
+                    "admin_id": created_db_user.admin_id if hasattr(created_db_user, 'admin_id') else None
+                }
+
                 bg.add_task(xray.operations.add_user, dbuser=created_db_user)
-                report_user = UserResponse.model_validate(created_db_user)
-                bg.add_task(report.user_created, user=report_user, user_id=created_db_user.id, by=admin, user_admin=created_db_user.admin)
+
+                # Create UserResponse within the session context
+                try:
+                    report_user = UserResponse.model_validate(created_db_user)
+                    bg.add_task(report.user_created, user=report_user, user_id=created_db_user.id, by=admin, user_admin=created_db_user.admin)
+                except Exception as e:
+                    logger.warning(f"Failed to create report for user {created_db_user.username}: {e}")
+                    # Continue without failing the import
             else:
                 # This case should ideally not be reached if crud.create_user raises an exception on failure.
                 failed_imports += 1
