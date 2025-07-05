@@ -260,11 +260,30 @@ export const HiddifyImportModal: FC = () => {
       if (file) {
         formData.append("file", file);
       }
+
+      // Apply the same transform logic as in the schema
+      const rawProxies = form.getValues("proxies");
+      const transformedProxies = { ...rawProxies };
+
+      const deleteIfEmpty = (obj: any, key: string) => {
+        if (obj && obj[key] === "") {
+          delete obj[key];
+        }
+      };
+
+      if (transformedProxies.vmess) deleteIfEmpty(transformedProxies.vmess, "id");
+      if (transformedProxies.vless) deleteIfEmpty(transformedProxies.vless, "id");
+      if (transformedProxies.trojan) deleteIfEmpty(transformedProxies.trojan, "password");
+      if (transformedProxies.shadowsocks) {
+        deleteIfEmpty(transformedProxies.shadowsocks, "password");
+        deleteIfEmpty(transformedProxies.shadowsocks, "method");
+      }
+
       formData.append("set_unlimited_expire", form.getValues("set_unlimited_expire").toString());
       formData.append("enable_smart_username_parsing", form.getValues("enable_smart_username_parsing").toString());
       formData.append("selected_protocols", JSON.stringify(form.getValues("selected_protocols")));
       formData.append("inbounds", JSON.stringify(form.getValues("inbounds")));
-      formData.append("proxies", JSON.stringify(form.getValues("proxies")));
+      formData.append("proxies", JSON.stringify(transformedProxies));
 
       const response = await fetch("/users/import/hiddify", {
         method: "POST",
