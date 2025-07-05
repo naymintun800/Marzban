@@ -57,7 +57,14 @@ def _alter_inbound_user(api: XRayAPI, inbound_tag: str, account: Account):
 
 
 def add_user(dbuser: "DBUser"):
-    user = UserResponse.model_validate(dbuser)
+    # Handle both SQLAlchemy User objects and simple user objects
+    if hasattr(dbuser, '__tablename__'):
+        # This is a SQLAlchemy User object
+        user = UserResponse.model_validate(dbuser)
+    else:
+        # This is a simple user object (from import operations)
+        user = dbuser  # Already a UserResponse-like object
+
     email = f"{dbuser.id}.{dbuser.username}"
 
     for proxy_type, inbound_tags in user.inbounds.items():
@@ -101,7 +108,14 @@ def remove_user(dbuser: "DBUser"):
 
 
 def update_user(dbuser: "DBUser"):
-    user = UserResponse.model_validate(dbuser)
+    # Handle both SQLAlchemy User objects and simple user objects
+    if hasattr(dbuser, '__tablename__'):
+        # This is a SQLAlchemy User object
+        user = UserResponse.model_validate(dbuser)
+    else:
+        # This is a simple user object
+        user = dbuser  # Already a UserResponse-like object
+
     email = f"{dbuser.id}.{dbuser.username}"
 
     active_inbounds = []

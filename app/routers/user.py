@@ -891,20 +891,24 @@ async def import_hiddify_users(
                 # Refresh the user object to ensure it's properly attached to the session
                 db.refresh(created_db_user)
 
-                # Create a detached copy for background tasks to avoid session issues
-                user_data = {
-                    "id": created_db_user.id,
-                    "username": created_db_user.username,
-                    "proxies": created_db_user.proxies,
-                    "admin_id": created_db_user.admin_id if hasattr(created_db_user, 'admin_id') else None
-                }
+                # Create UserResponse within the session context to avoid detachment issues
+                user_response = UserResponse.model_validate(created_db_user)
 
-                bg.add_task(xray.operations.add_user, dbuser=created_db_user)
+                # Create a simple object for xray operations that doesn't rely on SQLAlchemy session
+                class SimpleUser:
+                    def __init__(self, user_response):
+                        self.id = user_response.id
+                        self.username = user_response.username
+                        self.proxies = user_response.proxies
+                        self.inbounds = user_response.inbounds
+                        self.status = user_response.status
 
-                # Create UserResponse within the session context
+                simple_user = SimpleUser(user_response)
+                bg.add_task(xray.operations.add_user, dbuser=simple_user)
+
+                # Use the already created user_response for reporting
                 try:
-                    report_user = UserResponse.model_validate(created_db_user)
-                    bg.add_task(report.user_created, user=report_user, user_id=created_db_user.id, by=admin, user_admin=created_db_user.admin)
+                    bg.add_task(report.user_created, user=user_response, user_id=created_db_user.id, by=admin, user_admin=created_db_user.admin)
                 except Exception as e:
                     logger.warning(f"Failed to create report for user {created_db_user.username}: {e}")
                     # Continue without failing the import
