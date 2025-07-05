@@ -57,7 +57,22 @@ const HiddifyImportSchema = z.object({
   selected_protocols: z.array(z.string()).min(1, "Please select at least one protocol"),
   inbounds: z.record(z.array(z.string())).optional(),
   // Add proxy settings for each protocol (similar to UserDialog)
-  proxies: z.record(z.any()).optional(),
+  proxies: z
+    .record(z.string(), z.record(z.string(), z.any()))
+    .transform((ins) => {
+      const deleteIfEmpty = (obj: any, key: string) => {
+        if (obj && obj[key] === "") {
+          delete obj[key];
+        }
+      };
+      deleteIfEmpty(ins.vmess, "id");
+      deleteIfEmpty(ins.vless, "id");
+      deleteIfEmpty(ins.trojan, "password");
+      deleteIfEmpty(ins.shadowsocks, "password");
+      deleteIfEmpty(ins.shadowsocks, "method");
+      return ins;
+    })
+    .optional(),
 }).refine(data => data.file !== null, {
   message: "Please select a file",
   path: ["file"],

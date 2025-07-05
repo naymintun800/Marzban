@@ -708,7 +708,7 @@ async def import_hiddify_users(
             "username": "", # Will be set by parsing logic
             "proxies": user_proxies,
             "inbounds": user_inbounds,
-            "status": UserStatus.active, # Default, will be mapped
+            "status": "active", # Use string instead of enum for UserCreate
             "data_limit": 0, # Default, will be mapped
             "data_limit_reset_strategy": UserDataLimitResetStrategy.no_reset, # Default, will be mapped
             "expire": 0, # Default, will be mapped
@@ -819,13 +819,23 @@ async def import_hiddify_users(
             else: # No package_days, assume unlimited
                 user_create_data["expire"] = 0
 
-        # Map status
+        # Map status - UserCreate only allows 'active' and 'on_hold'
         h_enable = h_user.get("enable") # boolean
         if isinstance(h_enable, bool):
-            user_create_data["status"] = UserStatus.active if h_enable else UserStatus.disabled
+            # For UserCreate, we can only use 'active' or 'on_hold'
+            # If disabled in Hiddify, we'll create as active but could add a note
+            user_create_data["status"] = "active"
+            if not h_enable:
+                # Add note about original disabled status
+                original_note = user_create_data.get("note", "")
+                disabled_note = "[Originally disabled in Hiddify]"
+                if original_note:
+                    user_create_data["note"] = f"{original_note} {disabled_note}"
+                else:
+                    user_create_data["note"] = disabled_note
         else:
             # Default to active if 'enable' field is missing or not a boolean
-            user_create_data["status"] = UserStatus.active
+            user_create_data["status"] = "active"
             if h_enable is not None: # Log if it's present but not bool
                  errors.append(f"Invalid 'enable' field value \'{h_enable}\' for Hiddify user {original_hiddify_name} (UUID: {h_uuid}). Defaulting to active.")
 
@@ -859,7 +869,7 @@ async def import_hiddify_users(
                 username=user_create_data["username"],
                 proxies=user_create_data["proxies"],
                 inbounds=user_create_data.get("inbounds", {}),
-                status=user_create_data.get("status", UserStatus.active),
+                status=user_create_data.get("status", "active"),
                 data_limit=user_create_data.get("data_limit"),
                 data_limit_reset_strategy=user_create_data.get("data_limit_reset_strategy", UserDataLimitResetStrategy.no_reset),
                 expire=user_create_data.get("expire"),
