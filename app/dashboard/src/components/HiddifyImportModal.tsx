@@ -19,6 +19,7 @@ import {
   ModalHeader,
   ModalOverlay,
   Progress,
+  Select,
   Spinner,
   Text,
   VStack,
@@ -26,6 +27,7 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { ArrowUpTrayIcon } from "@heroicons/react/24/outline";
+import { XTLSFlows } from "constants/Proxies";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useDashboard } from "contexts/DashboardContext";
 import { FC, useRef, useState, useEffect } from "react";
@@ -51,13 +53,16 @@ interface HiddifyImportResponse {
 
 // Form validation schema
 const HiddifyImportSchema = z.object({
-  file: z.any().refine((file) => file instanceof File, "Please select a file"),
+  file: z.instanceof(File, { message: "Please select a file" }).nullable(),
   set_unlimited_expire: z.boolean(),
   enable_smart_username_parsing: z.boolean(),
   selected_protocols: z.array(z.string()).min(1, "Please select at least one protocol"),
   inbounds: z.record(z.array(z.string())).optional(),
   // Add proxy settings for each protocol (similar to UserDialog)
   proxies: z.record(z.any()).optional(),
+}).refine(data => data.file !== null, {
+  message: "Please select a file",
+  path: ["file"],
 });
 
 type FormType = z.infer<typeof HiddifyImportSchema>;
@@ -68,7 +73,9 @@ const getDefaultValues = (): FormType => ({
   enable_smart_username_parsing: true,
   selected_protocols: [],
   inbounds: {},
-  proxies: {},
+  proxies: {
+    vless: { flow: "xtls-rprx-vision" },
+  },
 });
 
 export const HiddifyImportModal: FC = () => {
@@ -143,15 +150,29 @@ export const HiddifyImportModal: FC = () => {
     setIsDeletingImported(true);
     try {
       // Get all users and filter those with custom_uuid
-      const response = await fetch("/users?limit=1000") as { users: any[], total: number };
+      const response = await fetch("/users?limit=10000") as { users: any[], total: number };
       const importedUsers = response.users.filter(user => user.custom_uuid);
-      
-      // Delete each imported user
-      const deletePromises = importedUsers.map(user => 
-        fetch(`/user/${user.username}`, { method: "DELETE" })
-      );
-      
-      await Promise.all(deletePromises);
+      const usernamesToDelete = importedUsers.map(user => user.username);
+
+      if (usernamesToDelete.length === 0) {
+        toast({
+          title: t("hiddifyImport.noImportedUsers"),
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+        });
+        setShowDeleteConfirm(false);
+        return;
+      }
+
+      // Use the bulk delete endpoint
+      await fetch("/users", {
+        method: "DELETE",
+        body: JSON.stringify({ usernames: usernamesToDelete }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
       
       toast({
         title: t("hiddifyImport.deleteSuccess"),
@@ -221,7 +242,10 @@ export const HiddifyImportModal: FC = () => {
 
     try {
       const formData = new FormData();
-      formData.append("file", form.getValues("file"));
+      const file = form.getValues("file");
+      if (file) {
+        formData.append("file", file);
+      }
       formData.append("set_unlimited_expire", form.getValues("set_unlimited_expire").toString());
       formData.append("enable_smart_username_parsing", form.getValues("enable_smart_username_parsing").toString());
       formData.append("selected_protocols", JSON.stringify(form.getValues("selected_protocols")));
@@ -333,9 +357,9 @@ export const HiddifyImportModal: FC = () => {
                           },
                         }}
                       />
-                      {form.watch("file") && (
+                      {form.watch("file")?.name && (
                         <Text fontSize="sm" color="green.500" mt={2}>
-                          {t("hiddifyImport.fileSelected", { filename: form.watch("file").name })}
+                          {t("hiddifyImport.fileSelected", { filename: form.watch("file")?.name })}
                         </Text>
                       )}
                     </Box>
@@ -457,13 +481,36 @@ export const HiddifyImportModal: FC = () => {
                       }}
                     />
                   </Box>
-                  <FormErrorMessage>
-                    {form.formState.errors.selected_protocols?.message}
-                  </FormErrorMessage>
-                </FormControl>
-              </GridItem>
-            </Grid>
-          </ModalBody>
+                    <FormErrorMessage>
+                      {form.formState.errors.selected_protocols?.message}
+                    </FormErrorMessage>
+                  </FormControl>
+                  {selectedProtocols.includes("vless") && (
+                    <FormControl>
+                      <FormLabel>{t("userDialog.flow")}</FormLabel>
+                      <Controller
+                        name="proxies.vless.flow"
+                        control={form.control}
+                        render={({ field }) => (
+                          <Select
+                            {...field}
+                            size="sm"
+                            borderRadius="6px"
+                            disabled={isImporting}
+                          >
+                            {XTLSFlows.map((flow) => (
+                              <option key={flow.value} value={flow.value}>
+                                {flow.title}
+                              </option>
+                            ))}
+                          </Select>
+                        )}
+                      />
+                    </FormControl>
+                  )}
+                </GridItem>
+              </Grid>
+            </ModalBody>
 
           <ModalFooter pt={4} pb={6}>
             <HStack spacing={3} w="full" flexDirection={{ base: "column", sm: "row" }}>
@@ -554,4 +601,4 @@ export const HiddifyImportModal: FC = () => {
       </Modal>
     </Modal>
   );
-}; 
+};
