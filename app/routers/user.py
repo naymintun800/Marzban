@@ -519,14 +519,40 @@ def remove_users(
         )
 
     removed_usernames = [u.username for u in users_to_delete]
+    # Extract usernames before deletion for logging and reporting
+    removed_usernames = [u.username for u in users_to_delete]
+    
+    # Prepare data for background tasks before the user objects are deleted
+    # This avoids issues with detached instances after the commit in remove_users
+    xray_tasks_data = [{"username": u.username, "proxies": u.proxies} for u in users_to_delete]
+    report_tasks_data = [{"username": u.username, "admin_username": u.admin.username if u.admin else None} for u in users_to_delete]
+
+    # Perform the bulk deletion
     crud.remove_users(db, users_to_delete)
 
-    for dbuser in users_to_delete:
-        bg.add_task(xray.operations.remove_user, dbuser=dbuser)
+    # Schedule background tasks in a more efficient manner
+    # For Xray, we can pass the necessary info instead of the whole dbuser object
+    for xray_data in xray_tasks_data:
+        # We need a dictionary that can be handled by xray.operations.remove_user
+        # Assuming it can work with a dict that has .username and .proxies
+        # This might require a small adjustment in xray.operations.remove_user if it strictly expects a User object
+        # For now, we construct a simple object-like structure if needed, or pass the dict.
+        # Let's assume we can pass a dictionary-like object.
+        class MinimalUserInfo:
+            def __init__(self, username, proxies):
+                self.username = username
+                self.proxies = proxies
+        
+        bg.add_task(xray.operations.remove_user, dbuser=MinimalUserInfo(xray_data['username'], xray_data['proxies']))
+
+    # For reporting, we can also pass simplified data
+    for report_data in report_tasks_data:
+        # Create a minimal admin object for the report task if needed
+        minimal_admin_obj = Admin(username=report_data['admin_username']) if report_data['admin_username'] else None
         bg.add_task(
             report.user_deleted,
-            username=dbuser.username,
-            user_admin=Admin.model_validate(dbuser.admin),
+            username=report_data['username'],
+            user_admin=minimal_admin_obj,
             by=admin,
         )
 
