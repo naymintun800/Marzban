@@ -218,6 +218,20 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
     return get_user_queryset(db).filter(User.id == user_id).first()
 
 
+def get_user_by_custom_uuid(db: Session, custom_uuid: str) -> Optional[User]:
+    """
+    Retrieves a user by custom_uuid (used for Hiddify imports).
+
+    Args:
+        db (Session): Database session.
+        custom_uuid (str): The custom UUID of the user.
+
+    Returns:
+        Optional[User]: The user object if found, else None.
+    """
+    return get_user_queryset(db).filter(User.custom_uuid == custom_uuid).first()
+
+
 def get_user_by_custom_path_and_token(db: Session, path: str, token: str) -> Optional[User]:
     """
     Retrieves a user by their custom subscription path and token (custom_uuid).

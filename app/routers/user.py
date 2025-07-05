@@ -685,6 +685,12 @@ async def import_hiddify_users(
             failed_imports += 1
             continue
 
+        # Check if user with this custom_uuid already exists
+        existing_user = crud.get_user_by_custom_uuid(db, h_uuid)
+        if existing_user:
+            logger.info(f"Skipping user '{original_hiddify_name}' (UUID: {h_uuid}) - already exists as '{existing_user.username}'")
+            continue  # Skip this user, don't count as failed
+
         # Initialize UserCreate fields
         # Build proxies dict with settings from frontend
         user_proxies = {}
