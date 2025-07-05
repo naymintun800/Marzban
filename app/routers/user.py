@@ -699,6 +699,12 @@ async def import_hiddify_users(
             failed_imports += 1
             continue
 
+        # Check if user is disabled in Hiddify (skip disabled users)
+        h_enable = h_user.get("enable", True)  # Default to True if not specified
+        if h_enable is False:
+            logger.info(f"SKIPPING disabled user '{original_hiddify_name}' (UUID: {h_uuid}) - enable: false")
+            continue  # Skip this user, don't count as failed
+
         # Check if user with this custom_uuid already exists
         logger.info(f"Checking for existing user with UUID: {h_uuid}")
         existing_user = crud.get_user_by_custom_uuid(db, h_uuid)
@@ -750,11 +756,17 @@ async def import_hiddify_users(
                 potential_note_name = match.group(2).strip()
                 logger.info(f"Parsed numbered user: '{potential_username_num}' with note: '{potential_note_name}'")
 
-                # For numbered users, add batch prefix to avoid conflicts across imports
-                unique_numbered_username = f"{potential_username_num}_{batch_id[-6:]}"
-                marzban_username = generate_unique_marzban_username(db, unique_numbered_username, h_uuid)
+                # For numbered users, use the number directly as username
+                marzban_username = potential_username_num  # Just use "1330", not "1330_something"
                 marzban_note = potential_note_name
-                logger.info(f"Generated username for numbered user: '{marzban_username}'")
+
+                # Check if this numbered username already exists
+                existing_numbered_user = crud.get_user(db, marzban_username)
+                if existing_numbered_user:
+                    logger.info(f"SKIPPING numbered user '{original_hiddify_name}' - username '{marzban_username}' already exists")
+                    continue  # Skip this user, don't count as failed
+
+                logger.info(f"Using direct numbered username: '{marzban_username}'")
             else:
                 # For other names (no leading number + space, or non-Latin etc.)
                 # Original Hiddify name becomes Marzban note. Marzban username is generated.
