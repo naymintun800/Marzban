@@ -77,6 +77,8 @@ def generate_unique_marzban_username(db: Session, base_username: str, h_uuid: st
     # First, try the base_username as is, if it's valid
     temp_username = _sanitize_raw_username(base_username, h_uuid)
 
+    logger.info(f"Generating username from base: '{base_username}' -> sanitized: '{temp_username}'")
+
     # Check if the (potentially sanitized) username is valid according to Marzban rules
     # This is a simplified check; User model validation is the ultimate source of truth
     if not (MARZBAN_USERNAME_MIN_LEN <= len(temp_username) <= MARZBAN_USERNAME_MAX_LEN and \
@@ -87,7 +89,7 @@ def generate_unique_marzban_username(db: Session, base_username: str, h_uuid: st
         temp_username = f"h_user_{h_uuid[:max(MARZBAN_USERNAME_MIN_LEN, MARZBAN_USERNAME_MAX_LEN - 7)]}"
         # Ensure this fallback is also sanitized, though it should be by construction
         temp_username = _sanitize_raw_username(temp_username, h_uuid)
-
+        logger.info(f"Used fallback username: '{temp_username}'")
 
     candidate_username = temp_username
     suffix = 1
@@ -100,11 +102,17 @@ def generate_unique_marzban_username(db: Session, base_username: str, h_uuid: st
             candidate_username = temp_username[:MARZBAN_USERNAME_MAX_LEN - len(suffix_str)] + suffix_str
         else:
             candidate_username = temp_username + suffix_str
+
+        logger.info(f"Username '{temp_username}' exists, trying: '{candidate_username}'")
         suffix += 1
         if suffix > 999: # Safety break for extreme cases
             logger.error(f"Could not generate unique username for base '{base_username}' and UUID '{h_uuid}' after 999 tries.")
             # Fallback to a more unique name if suffixing fails badly
-            return f"h_err_{h_uuid[:MARZBAN_USERNAME_MAX_LEN-6]}"
+            fallback = f"h_err_{h_uuid[:MARZBAN_USERNAME_MAX_LEN-6]}"
+            logger.error(f"Using fallback username: '{fallback}'")
+            return fallback
+
+    logger.info(f"Final generated username: '{candidate_username}'")
     return candidate_username
 
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
@@ -740,8 +748,13 @@ async def import_hiddify_users(
             if match:
                 potential_username_num = match.group(1)
                 potential_note_name = match.group(2).strip()
-                marzban_username = generate_unique_marzban_username(db, potential_username_num, h_uuid)
+                logger.info(f"Parsed numbered user: '{potential_username_num}' with note: '{potential_note_name}'")
+
+                # For numbered users, add batch prefix to avoid conflicts across imports
+                unique_numbered_username = f"{potential_username_num}_{batch_id[-6:]}"
+                marzban_username = generate_unique_marzban_username(db, unique_numbered_username, h_uuid)
                 marzban_note = potential_note_name
+                logger.info(f"Generated username for numbered user: '{marzban_username}'")
             else:
                 # For other names (no leading number + space, or non-Latin etc.)
                 # Original Hiddify name becomes Marzban note. Marzban username is generated.
