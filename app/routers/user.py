@@ -484,6 +484,56 @@ def delete_expired_users(
     return removed_users
 
 
+class UsersDeleteRequest(BaseModel):
+    usernames: List[str]
+
+
+@router.delete("/users", response_model=List[str], tags=["User"])
+def remove_users(
+    body: UsersDeleteRequest,
+    bg: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    """Delete multiple users by their usernames."""
+    # Sudo admin can delete any user, other admins can only delete their own users
+    admins_filter = None if admin.is_sudo else [admin.username]
+    users_to_delete, count = crud.get_users(
+        db, usernames=body.usernames, admins=admins_filter, return_with_count=True
+    )
+
+    if not users_to_delete:
+        raise HTTPException(
+            status_code=404,
+            detail="No users found for the provided usernames under your administration.",
+        )
+
+    # Log if some users were not found or not permitted
+    if count != len(body.usernames):
+        found_usernames = {u.username for u in users_to_delete}
+        not_found_or_permitted = [
+            u for u in body.usernames if u not in found_usernames
+        ]
+        logger.warning(
+            f"Admin '{admin.username}' attempted to bulk delete users, but some were not found or not permitted: {not_found_or_permitted}"
+        )
+
+    removed_usernames = [u.username for u in users_to_delete]
+    crud.remove_users(db, users_to_delete)
+
+    for dbuser in users_to_delete:
+        bg.add_task(xray.operations.remove_user, dbuser=dbuser)
+        bg.add_task(
+            report.user_deleted,
+            username=dbuser.username,
+            user_admin=Admin.model_validate(dbuser.admin),
+            by=admin,
+        )
+
+    logger.info(f'Bulk deleted {len(removed_usernames)} users: {", ".join(removed_usernames)}')
+    return removed_usernames
+
+
 @router.post("/users/import/hiddify", response_model=HiddifyImportResponse, tags=["User"])
 async def import_hiddify_users(
     bg: BackgroundTasks,  # Required, no default

@@ -455,14 +455,21 @@ def remove_user(db: Session, dbuser: User) -> User:
 
 def remove_users(db: Session, dbusers: List[User]):
     """
-    Removes multiple users from the database.
+    Removes multiple users from the database in a single, efficient transaction.
 
     Args:
         db (Session): Database session.
         dbusers (List[User]): List of user objects to be removed.
     """
-    for dbuser in dbusers:
-        db.delete(dbuser)
+    if not dbusers:
+        return
+
+    user_ids = [user.id for user in dbusers]
+
+    # Because all relationships now have the correct cascade settings,
+    # we can perform a bulk delete without worrying about orphaned rows.
+    # This is much more efficient than deleting users one by one.
+    db.query(User).filter(User.id.in_(user_ids)).delete(synchronize_session=False)
     db.commit()
     return
 

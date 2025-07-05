@@ -100,7 +100,7 @@ class User(Base):
         nullable=False,
         default=UserDataLimitResetStrategy.no_reset,
     )
-    usage_logs = relationship("UserUsageResetLogs", back_populates="user")  # maybe rename it to reset_usage_logs?
+    usage_logs = relationship("UserUsageResetLogs", back_populates="user", cascade="all, delete-orphan")  # maybe rename it to reset_usage_logs?
     expire = Column(Integer, nullable=True)
     admin_id = Column(Integer, ForeignKey("admins.id"))
     admin = relationship("Admin", back_populates="users")
