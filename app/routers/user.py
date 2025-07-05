@@ -524,7 +524,7 @@ def remove_users(
     
     # Prepare data for background tasks before the user objects are deleted
     # This avoids issues with detached instances after the commit in remove_users
-    xray_tasks_data = [{"username": u.username, "proxies": u.proxies} for u in users_to_delete]
+    xray_tasks_data = [{"id": u.id, "username": u.username, "proxies": u.proxies} for u in users_to_delete]
     report_tasks_data = [{"username": u.username, "admin_username": u.admin.username if u.admin else None} for u in users_to_delete]
 
     # Perform the bulk deletion
@@ -539,11 +539,12 @@ def remove_users(
         # For now, we construct a simple object-like structure if needed, or pass the dict.
         # Let's assume we can pass a dictionary-like object.
         class MinimalUserInfo:
-            def __init__(self, username, proxies):
+            def __init__(self, user_id, username, proxies):
+                self.id = user_id
                 self.username = username
                 self.proxies = proxies
-        
-        bg.add_task(xray.operations.remove_user, dbuser=MinimalUserInfo(xray_data['username'], xray_data['proxies']))
+
+        bg.add_task(xray.operations.remove_user, dbuser=MinimalUserInfo(xray_data['id'], xray_data['username'], xray_data['proxies']))
 
     # For reporting, we can also pass simplified data
     for report_data in report_tasks_data:
