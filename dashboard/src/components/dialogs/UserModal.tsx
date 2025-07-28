@@ -1333,6 +1333,107 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                   {editingUser && editingUserData && (editingUserData.sub_updated_at || editingUserData.sub_last_user_agent) && (
                     <SubscriptionInfo subUpdatedAt={editingUserData.sub_updated_at} subLastUserAgent={editingUserData.sub_last_user_agent} />
                   )}
+                  {/* Custom Subscription Settings Accordion - only show for non-template users */}
+                  {!selectedTemplateId && (
+                    <Accordion type="single" collapsible className="my-4 w-full">
+                      <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="customSubscription">
+                        <AccordionTrigger>
+                          <div className="flex items-center gap-2">
+                            <Layers className="h-4 w-4" />
+                            <span>{t('userDialog.customSubscriptionAccordion', { defaultValue: 'Custom Subscription' })}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-2">
+                          <div className="mb-2 text-xs text-muted-foreground">
+                            {t('userDialog.customSubscription.desc', { 
+                              defaultValue: 'Configure custom subscription path and UUID for this user'
+                            })}
+                          </div>
+                          <div className="space-y-4">
+                            <FormField
+                              control={form.control}
+                              name="custom_subscription_path"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>
+                                    {t('userDialog.customSubscription.path', { defaultValue: 'Custom Path' })}
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...field}
+                                      placeholder={t('userDialog.customSubscription.pathPlaceholder', { 
+                                        defaultValue: 'e.g., user123 (optional)'
+                                      })}
+                                      value={field.value ?? ''}
+                                      onChange={e => {
+                                        field.onChange(e)
+                                        handleFieldChange('custom_subscription_path', e.target.value)
+                                      }}
+                                      onBlur={() => handleFieldBlur('custom_subscription_path')}
+                                    />
+                                  </FormControl>
+                                  <div className="text-xs text-muted-foreground">
+                                    {t('userDialog.customSubscription.pathDesc', { 
+                                      defaultValue: 'Custom URL path for subscription access (leave empty for default)'
+                                    })}
+                                  </div>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="custom_uuid"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>
+                                    {t('userDialog.customSubscription.uuid', { defaultValue: 'Custom UUID' })}
+                                  </FormLabel>
+                                  <FormControl>
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        {...field}
+                                        placeholder={t('userDialog.customSubscription.uuidPlaceholder', { 
+                                          defaultValue: 'Custom UUID (optional)'
+                                        })}
+                                        value={field.value ?? ''}
+                                        onChange={e => {
+                                          field.onChange(e)
+                                          handleFieldChange('custom_uuid', e.target.value)
+                                        }}
+                                        onBlur={() => handleFieldBlur('custom_uuid')}
+                                      />
+                                      <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={e => {
+                                          e.preventDefault()
+                                          e.stopPropagation()
+                                          const newUuid = generateUUID('v4', field.value)
+                                          field.onChange(newUuid)
+                                          handleFieldChange('custom_uuid', newUuid)
+                                        }}
+                                        title="Generate UUID"
+                                      >
+                                        <RefreshCcw className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </FormControl>
+                                  <div className="text-xs text-muted-foreground">
+                                    {t('userDialog.customSubscription.uuidDesc', { 
+                                      defaultValue: 'Custom UUID for subscription token (leave empty for default)'
+                                    })}
+                                  </div>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  )}
                   {/* Proxy Settings Accordion */}
                   <Accordion type="single" collapsible className="my-4 w-full">
                     <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="proxySettings">

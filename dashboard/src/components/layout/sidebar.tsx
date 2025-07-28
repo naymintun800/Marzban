@@ -155,6 +155,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   icon: Share2Icon,
                 },
                 {
+                  title: 'resilientNodeGroups.title',
+                  url: '/nodes/resilient-groups',
+                  icon: Users2,
+                },
+                {
                   title: 'settings.cores.title',
                   url: '/nodes/cores',
                   icon: Cpu,

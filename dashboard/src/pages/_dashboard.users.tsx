@@ -2,14 +2,18 @@ import PageHeader from '@/components/page-header'
 import { Separator } from '@/components/ui/separator'
 import UsersTable from '@/components/users/users-table'
 import UsersStatistics from '@/components/UsersStatistics'
-import { Plus } from 'lucide-react'
+import { Plus, Upload } from 'lucide-react'
 import PageTransition from '@/components/PageTransition'
 
 import UserModal from '@/components/dialogs/UserModal'
+import HiddifyImportModal, { hiddifyImportFormSchema, HiddifyImportFormValues } from '@/components/dialogs/HiddifyImportModal'
+import { Button } from '@/components/ui/button'
 import { useForm } from 'react-hook-form'
 import { useState } from 'react'
 import { z } from 'zod'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { cn } from '@/lib/utils'
 
 // --- Zod Schemas matching backend ---
@@ -77,6 +81,8 @@ export const userCreateSchema = z.object({
   auto_delete_in_days: z.number().optional(),
   next_plan: nextPlanModelSchema.optional(),
   template_id: z.number().optional(),
+  custom_subscription_path: z.string().max(256).optional(),
+  custom_uuid: z.string().uuid().optional(),
 })
 
 export const userEditSchema = z.object({
@@ -105,6 +111,8 @@ export const userEditSchema = z.object({
   auto_delete_in_days: z.number().optional(),
   next_plan: nextPlanModelSchema.optional(),
   template_id: z.number().optional(),
+  custom_subscription_path: z.string().max(256).optional(),
+  custom_uuid: z.string().uuid().optional(),
 })
 
 export type UseEditFormValues = z.infer<typeof userEditSchema>
@@ -134,14 +142,22 @@ export const UserFormDefaultValues: UseFormValues = {
       method: 'chacha20-ietf-poly1305',
     },
   },
+  custom_subscription_path: '',
+  custom_uuid: '',
 }
 
 const Users = () => {
+  const { t } = useTranslation()
   const [isUserModalOpen, setUserModalOpen] = useState(false)
+  const [isHiddifyImportModalOpen, setHiddifyImportModalOpen] = useState(false)
   const queryClient = useQueryClient()
 
   const userForm = useForm<UseFormValues | UseEditFormValues>({
     defaultValues: UserFormDefaultValues,
+  })
+
+  const hiddifyImportForm = useForm<HiddifyImportFormValues>({
+    resolver: zodResolver(hiddifyImportFormSchema),
   })
 
   // Configure global refetch for all user data
@@ -157,10 +173,30 @@ const Users = () => {
     setUserModalOpen(true)
   }
 
+  const handleHiddifyImport = () => {
+    hiddifyImportForm.reset()
+    setHiddifyImportModalOpen(true)
+  }
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
-        <PageHeader title="users" description="manageAccounts" buttonIcon={Plus} buttonText="createUser" onButtonClick={handleCreateUser} />
+        <div className="w-full mx-auto py-4 md:pt-6 gap-4 flex items-start justify-between flex-row px-4">
+          <div className="flex flex-col gap-y-1">
+            <h1 className="font-medium text-lg sm:text-xl">{t('users')}</h1>
+            <span className="whitespace-normal text-muted-foreground text-xs sm:text-sm">{t('manageAccounts')}</span>
+          </div>
+          <div className="flex gap-2">
+            <Button className="flex items-center" onClick={handleHiddifyImport} size="sm" variant="outline">
+              <Upload className="h-4 w-4" />
+              <span>{t('hiddifyImport.import', { defaultValue: 'Import Hiddify' })}</span>
+            </Button>
+            <Button className="flex items-center" onClick={handleCreateUser} size="sm">
+              <Plus className="h-4 w-4" />
+              <span>{t('createUser')}</span>
+            </Button>
+          </div>
+        </div>
         <Separator />
       </div>
 
@@ -175,6 +211,7 @@ const Users = () => {
       </div>
 
       <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} onSuccessCallback={refreshAllUserData} />
+      <HiddifyImportModal isDialogOpen={isHiddifyImportModalOpen} onOpenChange={setHiddifyImportModalOpen} form={hiddifyImportForm} />
     </div>
   )
 }

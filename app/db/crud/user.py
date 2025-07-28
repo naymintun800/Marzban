@@ -75,6 +75,35 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
     return user
 
 
+async def get_user_by_custom_path_and_uuid(
+    db: AsyncSession, 
+    path: str, 
+    uuid: str
+) -> Optional[User]:
+    """
+    Retrieves a user by custom subscription path and UUID.
+
+    Args:
+        db (AsyncSession): Database session.
+        path (str): The custom subscription path.
+        uuid (str): The custom UUID.
+
+    Returns:
+        Optional[User]: The user object if found, else None.
+    """
+    stmt = select(User).where(
+        and_(
+            User.custom_subscription_path == path,
+            User.custom_uuid == uuid
+        )
+    )
+
+    user = (await db.execute(stmt)).unique().scalar_one_or_none()
+    if user:
+        await load_user_attrs(user)
+    return user
+
+
 UsersSortingOptions = Enum(
     "UsersSortingOptions",
     {

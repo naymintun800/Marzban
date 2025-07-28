@@ -35,6 +35,8 @@ class User(BaseModel):
     on_hold_timeout: dt | int | None = None
     group_ids: list[int] | None = Field(default_factory=list)
     auto_delete_in_days: int | None = None
+    custom_subscription_path: str | None = Field(max_length=256, default=None)
+    custom_uuid: str | None = Field(max_length=256, default=None)
 
     next_plan: NextPlanModel | None = None
 

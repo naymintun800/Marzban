@@ -1,10 +1,23 @@
+import json
+import uuid
 from datetime import datetime as dt
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 
 from app.db import AsyncSession, get_db
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
+from app.models.hiddify_import import (
+    HiddifyImportResponse,
+    HiddifyUserData,
+    convert_hiddify_data_limit,
+    generate_custom_uuid,
+    generate_unique_batch_id,
+    map_hiddify_reset_strategy,
+    parse_hiddify_expire_time,
+    parse_smart_username,
+    should_skip_user,
+)
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
     CreateUserFromTemplate,
@@ -307,3 +320,182 @@ async def bulk_modify_users_datalimit(
     - **group_ids**: Optional list of group IDs to filter users by their group membership
     """
     return await user_operator.bulk_modify_datalimit(db, bulk_model)
+
+
+@router.post(
+    "s/import/hiddify",
+    response_model=HiddifyImportResponse,
+    responses={400: responses._400},
+    summary="Import users from Hiddify JSON backup",
+)
+async def import_hiddify_users(
+    file: UploadFile = File(..., description="Hiddify JSON backup file"),
+    set_unlimited_expire: bool = Form(False, description="Set unlimited expiration for all users"),
+    enable_smart_username_parsing: bool = Form(True, description="Enable smart username parsing"),
+    selected_protocols: str = Form(..., description="JSON array of protocols to enable"),
+    proxies: str = Form(..., description="JSON object of proxy settings"),
+    inbounds: str = Form("{}", description="JSON object of inbound settings"),
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """
+    Import users from a Hiddify JSON backup file.
+    
+    - **file**: Hiddify JSON backup file
+    - **set_unlimited_expire**: Set unlimited expiration for all imported users 
+    - **enable_smart_username_parsing**: Parse "NUMBER NAME" format usernames
+    - **selected_protocols**: JSON array of protocols to enable (e.g., ["vmess", "vless"])
+    - **proxies**: JSON object with proxy settings for each protocol
+    - **inbounds**: JSON object with inbound settings (optional)
+    
+    **Smart Username Parsing Logic:**
+    - If enabled and format is "NUMBER NAME": use number as username, name as note
+    - Otherwise: sanitize the full name as username
+    
+    **Features:**
+    - Generates unique batch ID for tracking
+    - Skips disabled users (enable: false)
+    - Converts Hiddify data formats to Marzban equivalents
+    - Creates custom subscription UUIDs for imported users
+    - Comprehensive error handling and reporting
+    """
+    
+    # Generate unique batch ID
+    batch_id = generate_unique_batch_id()
+    
+    # Parse form parameters
+    try:
+        selected_protocols_list = json.loads(selected_protocols)
+        proxies_dict = json.loads(proxies)
+        inbounds_dict = json.loads(inbounds)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON in form parameters: {str(e)}")
+    
+    if not selected_protocols_list:
+        raise HTTPException(status_code=400, detail="At least one protocol must be selected")
+    
+    # Validate file
+    if not file.filename.endswith('.json'):
+        raise HTTPException(status_code=400, detail="File must be a JSON file")
+    
+    # Parse Hiddify JSON file
+    try:
+        content = await file.read()
+        hiddify_data = json.loads(content.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON file: {str(e)}")
+    
+    # Validate Hiddify data structure
+    if not isinstance(hiddify_data, dict) or 'users' not in hiddify_data:
+        raise HTTPException(status_code=400, detail="Invalid Hiddify backup format: missing 'users' key")
+    
+    users_data = hiddify_data.get('users', [])
+    if not isinstance(users_data, list):
+        raise HTTPException(status_code=400, detail="Invalid Hiddify backup format: 'users' must be an array")
+    
+    # Import statistics
+    successful_imports = 0
+    failed_imports = 0
+    errors = []
+    
+    # Process each user
+    for user_data_raw in users_data:
+        try:
+            # Parse user data
+            user_data = HiddifyUserData(**user_data_raw)
+            
+            # Skip if user should be skipped
+            if should_skip_user(user_data):
+                continue
+            
+            # Parse username and note using smart parsing
+            username, note = parse_smart_username(
+                user_data.name, 
+                user_data.uuid, 
+                enable_smart_username_parsing
+            )
+            
+            # Generate unique username if needed
+            existing_user = await user_operator.get_user(db, username)
+            if existing_user:
+                # Generate unique username with suffix
+                counter = 1
+                base_username = username
+                while existing_user:
+                    username = f"{base_username}_{counter}"
+                    if len(username) > 32:  # Marzban username limit
+                        username = f"{base_username[:28]}_{counter}"
+                    existing_user = await user_operator.get_user(db, username)
+                    counter += 1
+                    if counter > 999:  # Safety break
+                        raise Exception(f"Could not generate unique username for {user_data.name}")
+            
+            # Parse expiration
+            expire = parse_hiddify_expire_time(
+                user_data.expire_time, 
+                user_data.package_days, 
+                set_unlimited_expire
+            )
+            
+            # Parse data limit
+            data_limit = convert_hiddify_data_limit(user_data.usage_limit_GB)
+            
+            # Parse reset strategy
+            data_limit_reset_strategy = map_hiddify_reset_strategy(user_data.mode)
+            
+            # Create proxy settings
+            proxy_settings = {}
+            for protocol in selected_protocols_list:
+                if protocol in proxies_dict:
+                    proxy_settings[protocol] = proxies_dict[protocol]
+                else:
+                    # Default empty settings for the protocol
+                    proxy_settings[protocol] = {}
+            
+            # Generate custom subscription UUID
+            custom_uuid = generate_custom_uuid()
+            
+            # Combine note with comment if both exist
+            final_note = note
+            if user_data.comment:
+                if final_note:
+                    final_note = f"{final_note} | {user_data.comment}"
+                else:
+                    final_note = user_data.comment
+            
+            # Add batch ID to note for tracking
+            if final_note:
+                final_note = f"[{batch_id}] {final_note}"
+            else:
+                final_note = f"[{batch_id}] Imported from Hiddify"
+            
+            # Create user
+            new_user = UserCreate(
+                username=username,
+                proxy_settings=proxy_settings,
+                expire=expire,
+                data_limit=data_limit,
+                data_limit_reset_strategy=data_limit_reset_strategy,
+                note=final_note,
+                custom_uuid=custom_uuid,
+                # Set default values for other fields
+                status=UserStatus.active,
+                group_ids=[],  # Can be extended to support group mapping
+            )
+            
+            # Create the user
+            created_user = await user_operator.create_user(db, new_user=new_user, admin=admin)
+            successful_imports += 1
+            
+        except Exception as e:
+            failed_imports += 1
+            error_msg = f"User '{user_data_raw.get('name', 'unknown')}': {str(e)}"
+            errors.append(error_msg)
+            continue
+    
+    return HiddifyImportResponse(
+        successful_imports=successful_imports,
+        failed_imports=failed_imports,
+        errors=errors,
+        batch_id=batch_id,
+    )

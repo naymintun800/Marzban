@@ -41,6 +41,13 @@ users_groups_association = Table(
     Column("groups_id", ForeignKey("groups.id"), primary_key=True),
 )
 
+resilient_node_group_nodes_association = Table(
+    "resilient_node_group_nodes_association",
+    Base.metadata,
+    Column("resilient_node_group_id", ForeignKey("resilient_node_groups.id"), primary_key=True),
+    Column("node_id", ForeignKey("nodes.id"), primary_key=True),
+)
+
 
 class Admin(Base):
     __tablename__ = "admins"
@@ -146,6 +153,8 @@ class User(Base):
     sub_revoked_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     sub_updated_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     sub_last_user_agent: Mapped[Optional[str]] = mapped_column(String(512), default=None)
+    custom_subscription_path: Mapped[Optional[str]] = mapped_column(String(256), default=None)
+    custom_uuid: Mapped[Optional[str]] = mapped_column(String(256), unique=True, default=None)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
     online_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     on_hold_expire_duration: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
@@ -437,6 +446,12 @@ class ProxyHost(Base):
     transport_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     mux_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     status: Mapped[List[UserStatus]] = mapped_column(EnumArray(UserStatus), default=list, server_default="[]")
+    
+    # Resilient Node Group relationship
+    resilient_node_group_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("resilient_node_groups.id", ondelete="SET NULL"), nullable=True, default=None
+    )
+    resilient_node_group: Mapped[Optional["ResilientNodeGroup"]] = relationship(back_populates="hosts", init=False)
 
 
 class System(Base):
@@ -470,8 +485,14 @@ class NodeConnectionType(str, Enum):
 class NodeStatus(str, Enum):
     connected = "connected"
     connecting = "connecting"
-    error = "error"
-    disabled = "disabled"
+
+
+class ClientStrategyHint(str, Enum):
+    URL_TEST = "url-test"
+    FALLBACK = "fallback"
+    LOAD_BALANCE = "load-balance"
+    CLIENT_DEFAULT = "client-default"
+    NONE = ""
 
 
 class Node(Base):
@@ -510,6 +531,13 @@ class Node(Base):
     keep_alive: Mapped[int] = mapped_column(unique=False, default=0)
     max_logs: Mapped[int] = mapped_column(BigInteger, unique=False, default=1000, server_default=text("1000"))
     gather_logs: Mapped[bool] = mapped_column(default=True, server_default="1")
+    
+    # Relationship with resilient node groups
+    resilient_node_groups: Mapped[List["ResilientNodeGroup"]] = relationship(
+        secondary=resilient_node_group_nodes_association, 
+        back_populates="nodes",
+        init=False
+    )
 
 
 class NodeUserUsage(Base):
@@ -612,3 +640,33 @@ class Settings(Base):
     notification_settings: Mapped[dict] = mapped_column(JSON())
     notification_enable: Mapped[dict] = mapped_column(JSON())
     subscription: Mapped[dict] = mapped_column(JSON())
+
+
+class ResilientNodeGroup(Base):
+    __tablename__ = "resilient_node_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    client_strategy_hint: Mapped[ClientStrategyHint] = mapped_column(
+        SQLEnum(ClientStrategyHint), 
+        default=ClientStrategyHint.CLIENT_DEFAULT,
+        server_default=ClientStrategyHint.CLIENT_DEFAULT.value
+    )
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
+    updated_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), onupdate=lambda: dt.now(tz.utc), init=False)
+    
+    # Relationships
+    nodes: Mapped[List["Node"]] = relationship(
+        secondary=resilient_node_group_nodes_association, 
+        back_populates="resilient_node_groups",
+        init=False
+    )
+    hosts: Mapped[List["ProxyHost"]] = relationship(back_populates="resilient_node_group", init=False)
+
+    @property
+    def node_ids(self) -> List[int]:
+        return [node.id for node in self.nodes]
+
+    @property
+    def total_nodes(self) -> int:
+        return len(self.nodes)
