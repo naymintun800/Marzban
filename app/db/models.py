@@ -485,6 +485,7 @@ class NodeConnectionType(str, Enum):
 class NodeStatus(str, Enum):
     connected = "connected"
     connecting = "connecting"
+    disabled = "disabled"
 
 
 class ClientStrategyHint(str, Enum):
