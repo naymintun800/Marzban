@@ -96,6 +96,20 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     queryFn: () => getInbounds(),
   })
 
+  const { data: resilientNodeGroups = [] } = useQuery({
+    queryKey: ['getResilientNodeGroups'],
+    queryFn: async () => {
+      const response = await fetch('/api/resilient-node-groups', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+      })
+      if (!response.ok) throw new Error('Failed to fetch resilient node groups')
+      const data = await response.json()
+      return data.groups || []
+    },
+  })
+
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [] } = useQuery({
     queryKey: ['getHostsQueryKey'],
@@ -181,6 +195,34 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                         {inbounds.map(tag => (
                           <SelectItem className="cursor-pointer px-4" value={tag} key={tag}>
                             {tag}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="resilient_node_group_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('hostsDialog.resilientNodeGroup')}</FormLabel>
+                    <Select dir={dir} onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)} value={field.value?.toString() || ''}>
+                      <FormControl>
+                        <SelectTrigger className="py-5">
+                          <SelectValue placeholder={t('hostsDialog.selectResilientNodeGroup')} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent dir="ltr">
+                        <SelectItem value="">
+                          <span className="text-muted-foreground">{t('hostsDialog.noResilientNodeGroup')}</span>
+                        </SelectItem>
+                        {resilientNodeGroups.map((group: any) => (
+                          <SelectItem className="cursor-pointer px-4" value={group.id.toString()} key={group.id}>
+                            {group.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
