@@ -490,7 +490,7 @@ class ProxyHost(Base):
         EnumArray(UserStatus, 60), default=list, server_default=""
     )
     resilient_node_group_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("resilient_node_groups.id", ondelete="SET NULL"), nullable=True, default=None
+        ForeignKey("resilient_node_groups.id", ondelete="SET NULL"), nullable=True, default=None, init=False
     )
     resilient_node_group: Mapped[Optional["ResilientNodeGroup"]] = relationship(init=False)
 
