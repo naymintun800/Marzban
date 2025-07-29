@@ -18,8 +18,8 @@ from app.db.models import (
     NotificationReminder,
     ReminderType,
     User,
-    UserDataLimitResetStrategy,
     UserStatus,
+    UserDataLimitResetStrategy,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
 )
@@ -985,3 +985,23 @@ async def count_online_users(db: AsyncSession, time_delta: timedelta, admin_id: 
     if admin_id:
         query = query.where(User.admin_id == admin_id)
     return (await db.execute(query)).scalar_one_or_none()
+
+
+async def get_user_by_custom_path_and_uuid(
+    db: AsyncSession, 
+    path: str, 
+    token: str
+) -> Optional[User]:
+    """Get a user by custom subscription path and custom UUID."""
+    result = await db.execute(
+        select(User)
+        .options(joinedload(User.admin))
+        .where(
+            and_(
+                User.custom_subscription_path == path,
+                User.custom_uuid == token,
+                User.status != UserStatus.disabled,
+            )
+        )
+    )
+    return result.scalar_one_or_none()

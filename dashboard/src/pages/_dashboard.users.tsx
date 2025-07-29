@@ -59,6 +59,8 @@ export const userCreateSchema = z.object({
   note: z.string().optional(),
   proxy_settings: proxyTableInputSchema.optional(),
   data_limit_reset_strategy: userDataLimitResetStrategyEnum.optional(),
+  custom_subscription_path: z.string().optional(),
+  custom_uuid: z.string().optional(),
   on_hold_expire_duration: z
     .number()
     .nullable()
@@ -87,6 +89,8 @@ export const userEditSchema = z.object({
   note: z.string().optional(),
   proxy_settings: proxyTableInputSchema.optional(),
   data_limit_reset_strategy: userDataLimitResetStrategyEnum.optional(),
+  custom_subscription_path: z.string().optional(),
+  custom_uuid: z.string().optional(),
   on_hold_expire_duration: z
     .number()
     .nullable()
@@ -118,6 +122,8 @@ export const getDefaultUserForm = async () => {
     expire: '',
     note: '',
     group_ids: [],
+    custom_subscription_path: '',
+    custom_uuid: '',
     proxy_settings: {
       vmess: {
         id: undefined,

@@ -42,6 +42,13 @@ users_groups_association = Table(
     Column("groups_id", ForeignKey("groups.id"), primary_key=True),
 )
 
+resilient_node_group_nodes_association = Table(
+    "resilient_node_group_nodes_association",
+    Base.metadata,
+    Column("resilient_node_group_id", ForeignKey("resilient_node_groups.id"), primary_key=True),
+    Column("node_id", ForeignKey("nodes.id"), primary_key=True),
+)
+
 
 class Admin(Base):
     __tablename__ = "admins"
@@ -114,6 +121,13 @@ class UserDataLimitResetStrategy(str, Enum):
     week = "week"
     month = "month"
     year = "year"
+
+
+class ClientStrategyHint(str, Enum):
+    CLIENT_DEFAULT = "CLIENT_DEFAULT"
+    URL_TEST = "URL_TEST"
+    BALANCE = "BALANCE"
+    ROUND_ROBIN = "ROUND_ROBIN"
 
 
 class User(Base):
@@ -276,6 +290,10 @@ class User(Base):
     @days_left.expression
     def days_left(cls):
         return case((cls.expire.isnot(None), func.floor(DaysDiff())), else_=0)
+
+    # Custom subscription fields
+    custom_subscription_path: Mapped[Optional[str]] = mapped_column(String(100), default=None, index=True)
+    custom_uuid: Mapped[Optional[str]] = mapped_column(String(36), default=None, index=True)
 
 
 class UserSubscriptionUpdate(Base):
@@ -536,6 +554,37 @@ class Node(Base):
     keep_alive: Mapped[int] = mapped_column(unique=False, default=0)
     max_logs: Mapped[int] = mapped_column(BigInteger, unique=False, default=1000, server_default=text("1000"))
     gather_logs: Mapped[bool] = mapped_column(default=True, server_default="1")
+
+
+class ResilientNodeGroup(Base):
+    __tablename__ = "resilient_node_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    client_strategy_hint: Mapped[ClientStrategyHint] = mapped_column(
+        SQLEnum(ClientStrategyHint), 
+        default=ClientStrategyHint.CLIENT_DEFAULT
+    )
+    nodes: Mapped[List["Node"]] = relationship(
+        secondary=resilient_node_group_nodes_association, 
+        init=False, 
+        default_factory=list
+    )
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
+    updated_at: Mapped[dt] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: dt.now(tz.utc),
+        onupdate=lambda: dt.now(tz.utc),
+        init=False,
+    )
+
+    @property
+    def node_ids(self) -> List[int]:
+        return [node.id for node in self.nodes]
+
+    @property
+    def total_nodes(self) -> int:
+        return len(self.nodes)
 
 
 class NodeUserUsage(Base):
