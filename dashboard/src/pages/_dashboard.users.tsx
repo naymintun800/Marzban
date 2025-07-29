@@ -1,10 +1,14 @@
 import PageHeader from '@/components/page-header'
 import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
 import UsersTable from '@/components/users/users-table'
 import UsersStatistics from '@/components/UsersStatistics'
-import { Plus } from 'lucide-react'
+import { Plus, Upload } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import useDirDetection from '@/hooks/use-dir-detection'
 
 import UserModal from '@/components/dialogs/UserModal'
+import HiddifyImportModal from '@/components/dialogs/HiddifyImportModal'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -144,7 +148,10 @@ export const getDefaultUserForm = async () => {
 }
 
 const Users = () => {
+  const { t } = useTranslation()
+  const dir = useDirDetection()
   const [isUserModalOpen, setUserModalOpen] = useState(false)
+  const [isHiddifyImportModalOpen, setHiddifyImportModalOpen] = useState(false)
   const queryClient = useQueryClient()
   const userForm = useForm<UseFormValues | UseEditFormValues>({
     defaultValues: getDefaultUserForm,
@@ -163,10 +170,29 @@ const Users = () => {
     setUserModalOpen(true)
   }
 
+  const handleImportUsers = () => {
+    setHiddifyImportModalOpen(true)
+  }
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
-        <PageHeader title="users" description="manageAccounts" buttonIcon={Plus} buttonText="createUser" onButtonClick={handleCreateUser} />
+        <div dir={dir} className="w-full mx-auto py-4 md:pt-6 gap-4 flex items-start justify-between flex-row px-4">
+          <div className="flex flex-col gap-y-1">
+            <h1 className="font-medium text-lg sm:text-xl">{t('users')}</h1>
+            <span className="whitespace-normal text-muted-foreground text-xs sm:text-sm">{t('manageAccounts')}</span>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleImportUsers}>
+              <Upload className="h-4 w-4 mr-2" />
+              {t('hiddify_import.import_users')}
+            </Button>
+            <Button onClick={handleCreateUser}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('createUser')}
+            </Button>
+          </div>
+        </div>
         <Separator />
       </div>
 
@@ -181,6 +207,7 @@ const Users = () => {
       </div>
 
       <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} onSuccessCallback={() => refreshAllUserData()} />
+      <HiddifyImportModal open={isHiddifyImportModalOpen} onOpenChange={setHiddifyImportModalOpen} onSuccess={() => refreshAllUserData()} />
     </div>
   )
 }
