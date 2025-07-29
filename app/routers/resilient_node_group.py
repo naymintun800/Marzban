@@ -20,7 +20,7 @@ from app.models.resilient_node_group import (
 from app.routers.authentication import get_current
 from app.models.admin import AdminDetails
 
-router = APIRouter(tags=["Resilient Node Group"])
+router = APIRouter(tags=["Resilient Node Group"], prefix="/api/resilient-node-groups")
 
 
 @router.get("", response_model=ResilientNodeGroupsResponse)

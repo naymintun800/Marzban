@@ -22,7 +22,7 @@ from app.routers.authentication import get_current
 from app.models.admin import AdminDetails
 import json
 
-router = APIRouter(tags=["Hiddify Import"])
+router = APIRouter(tags=["Hiddify Import"], prefix="/api/hiddify")
 
 @router.post("/import", response_model=HiddifyImportResponse)
 async def import_hiddify_users(
