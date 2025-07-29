@@ -104,7 +104,7 @@ export default function HiddifyImportModal({
         selected_protocols: data.selected_protocols,
       }))
 
-      const response = await fetch('/api/hiddify_import/import', {
+      const response = await fetch('/api/hiddify/import', {
         method: 'POST',
         body: formData,
         headers: {

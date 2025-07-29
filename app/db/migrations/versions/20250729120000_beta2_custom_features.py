@@ -61,11 +61,27 @@ def upgrade() -> None:
             batch_op.add_column(sa.Column('custom_uuid', sa.String(length=36), nullable=True))
             batch_op.create_index(batch_op.f('ix_users_custom_uuid'), ['custom_uuid'], unique=False)
 
+    # Add resilient_node_group_id to hosts table if it doesn't exist
+    host_columns = [col['name'] for col in inspector.get_columns('hosts')]
+    
+    if 'resilient_node_group_id' not in host_columns:
+        with op.batch_alter_table('hosts', schema=None) as batch_op:
+            batch_op.add_column(sa.Column('resilient_node_group_id', sa.Integer(), nullable=True))
+            batch_op.create_foreign_key('fk_hosts_resilient_node_group_id', 'resilient_node_groups', ['resilient_node_group_id'], ['id'], ondelete='SET NULL')
+
 
 def downgrade() -> None:
     # Remove custom subscription fields from users table
     conn = op.get_bind()
     inspector = sa.inspect(conn)
+    
+    # Remove resilient_node_group_id from hosts table
+    host_columns = [col['name'] for col in inspector.get_columns('hosts')]
+    if 'resilient_node_group_id' in host_columns:
+        with op.batch_alter_table('hosts', schema=None) as batch_op:
+            batch_op.drop_constraint('fk_hosts_resilient_node_group_id', type_='foreignkey')
+            batch_op.drop_column('resilient_node_group_id')
+    
     user_columns = [col['name'] for col in inspector.get_columns('users')]
     
     if 'custom_uuid' in user_columns:

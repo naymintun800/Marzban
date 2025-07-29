@@ -145,6 +145,7 @@ export interface HostFormValues {
       heartbeatPeriod?: number
     }
   }
+  resilient_node_group_id?: number
 }
 
 // Update the transport settings schema
@@ -308,6 +309,7 @@ export const HostFormSchema = z.object({
   use_sni_as_host: z.boolean().default(false),
   priority: z.number().default(0),
   is_disabled: z.boolean().default(false),
+  resilient_node_group_id: z.number().optional(),
   fragment_settings: z
     .object({
       xray: z
@@ -412,6 +414,7 @@ const initialDefaultValues: HostFormValues = {
   random_user_agent: false,
   use_sni_as_host: false,
   priority: 0,
+  resilient_node_group_id: undefined,
   fragment_settings: undefined,
 }
 
@@ -470,6 +473,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
       use_sni_as_host: host.use_sni_as_host || false,
       priority: host.priority || 0,
       is_disabled: host.is_disabled || false,
+      resilient_node_group_id: host.resilient_node_group_id || undefined,
       fragment_settings: host.fragment_settings
         ? {
             xray: host.fragment_settings.xray ?? undefined,

@@ -198,6 +198,7 @@ class BaseHost(BaseModel):
     use_sni_as_host: bool = Field(default=False)
     priority: int
     status: set[UserStatus] = Field(default_factory=set)
+    resilient_node_group_id: int | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
 
