@@ -54,9 +54,13 @@ def run_build():
     app.mount("/statics/", StaticFiles(directory=statics_dir, html=True), name="statics")
 
 
-@on_startup
+# Initialize dashboard immediately when module is imported
+# instead of relying on the @on_startup decorator which isn't working
 def run_dashboard():
     if DEBUG:
         run_dev()
     else:
         run_build()
+
+# Call dashboard setup immediately
+run_dashboard()
