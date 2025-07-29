@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import JSONResponse
 
 from app.db import AsyncSession, get_db
-from app.db.crud.user import create_user, get_user_by_username
+from app.db.crud.user import create_user, get_user
+from app.db.crud.group import get_group_by_id
 from app.models.hiddify_import import (
     HiddifyImportConfig, 
     HiddifyImportResponse, 
@@ -17,7 +18,8 @@ from app.models.hiddify_import import (
     parse_smart_username
 )
 from app.models.user import UserCreate
-from app.routers.admin import admin_required
+from app.routers.authentication import get_current
+from app.models.admin import AdminDetails
 import json
 
 router = APIRouter(tags=["Hiddify Import"])
@@ -27,7 +29,7 @@ async def import_hiddify_users(
     config: HiddifyImportConfig,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    admin=Depends(admin_required),
+    admin: AdminDetails = Depends(get_current),
 ):
     """Import users from Hiddify JSON export."""
     
@@ -69,7 +71,7 @@ async def import_hiddify_users(
                 )
                 
                 # Check if user already exists
-                existing_user = await get_user_by_username(db, username)
+                existing_user = await get_user(db, username)
                 if existing_user:
                     errors.append(f"User '{username}' already exists")
                     failed_imports += 1
@@ -87,6 +89,13 @@ async def import_hiddify_users(
                 
                 # Map reset strategy
                 reset_strategy = map_hiddify_reset_strategy(user_data.mode)
+                
+                # Get default group (assuming group with ID 1 exists)
+                default_group = await get_group_by_id(db, 1)
+                if not default_group:
+                    errors.append(f"Default group not found for user '{username}'")
+                    failed_imports += 1
+                    continue
                 
                 # Create user
                 user_create = UserCreate(
@@ -108,7 +117,7 @@ async def import_hiddify_users(
                 )
                 
                 # Create user in database
-                await create_user(db, user_create, admin.id)
+                await create_user(db, user_create, [default_group], admin)
                 successful_imports += 1
                 
             except Exception as e:
