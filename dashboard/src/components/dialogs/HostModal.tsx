@@ -96,26 +96,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     queryFn: () => getInbounds(),
   })
 
-  const { data: resilientNodeGroups = [] } = useQuery({
-    queryKey: ['getResilientNodeGroups'],
-    queryFn: async () => {
-      try {
-        const response = await fetch('/api/resilient-node-groups', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          },
-        })
-        if (!response.ok) return []
-        const data = await response.json()
-        return data.groups || []
-      } catch (error) {
-        console.warn('Failed to fetch resilient node groups:', error)
-        return []
-      }
-    },
-    retry: false,
-    refetchOnWindowFocus: false,
-  })
+  // Temporarily disable resilient node groups until the feature is fully implemented
+  const resilientNodeGroups: any[] = []
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [] } = useQuery({
@@ -211,21 +193,22 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 )}
               />
 
+              {/* Temporarily hidden until resilient node groups feature is fully implemented
               <FormField
                 control={form.control}
                 name="resilient_node_group_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('hostsDialog.resilientNodeGroup')}</FormLabel>
+                    <FormLabel>Resilient Node Group</FormLabel>
                     <Select dir={dir} onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)} value={field.value?.toString() || ''}>
                       <FormControl>
                         <SelectTrigger className="py-5">
-                          <SelectValue placeholder={t('hostsDialog.selectResilientNodeGroup')} />
+                          <SelectValue placeholder="Select resilient node group" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent dir="ltr">
                         <SelectItem value="">
-                          <span className="text-muted-foreground">{t('hostsDialog.noResilientNodeGroup')}</span>
+                          <span className="text-muted-foreground">No resilient node group</span>
                         </SelectItem>
                         {resilientNodeGroups.map((group: any) => (
                           <SelectItem className="cursor-pointer px-4" value={group.id.toString()} key={group.id}>
@@ -238,6 +221,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                   </FormItem>
                 )}
               />
+              */}
 
               <FormField
                 control={form.control}
