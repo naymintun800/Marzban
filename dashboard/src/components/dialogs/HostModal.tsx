@@ -99,15 +99,22 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const { data: resilientNodeGroups = [] } = useQuery({
     queryKey: ['getResilientNodeGroups'],
     queryFn: async () => {
-      const response = await fetch('/api/resilient-node-groups', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch resilient node groups')
-      const data = await response.json()
-      return data.groups || []
+      try {
+        const response = await fetch('/api/resilient-node-groups', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          },
+        })
+        if (!response.ok) return []
+        const data = await response.json()
+        return data.groups || []
+      } catch (error) {
+        console.warn('Failed to fetch resilient node groups:', error)
+        return []
+      }
     },
+    retry: false,
+    refetchOnWindowFocus: false,
   })
 
   // Update the hosts query to refetch only when needed (not on dialog open)

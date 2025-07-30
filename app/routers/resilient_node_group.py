@@ -29,6 +29,7 @@ async def get_resilient_node_groups_route(
     limit: int = 50,
     sort: str = None,
     db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
 ):
     """Get all resilient node groups."""
     resilient_node_groups, total = await get_resilient_node_groups(
