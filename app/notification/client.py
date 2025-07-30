@@ -18,10 +18,18 @@ async def define_client():
     global client
     if client and not client.is_closed:
         asyncio.create_task(client.aclose())
+    try:
+        proxy_url = (await notification_settings()).proxy_url
+        if proxy_url and proxy_url.startswith('socks://'):
+            # httpx doesn't support socks directly, skip proxy for now
+            proxy_url = None
+    except Exception:
+        proxy_url = None
+    
     client = httpx.AsyncClient(
         http2=True,
         timeout=httpx.Timeout(10),
-        proxy=(await notification_settings()).proxy_url,
+        proxy=proxy_url if proxy_url else None,
     )
 
 

@@ -79,8 +79,10 @@ app.add_middleware(
 )
 from app import routers, telegram, jobs  # noqa
 from app.routers import api_router  # noqa
+from app.routers.custom_subscription import router as custom_subscription_router  # noqa
 
 app.include_router(api_router)
+app.include_router(custom_subscription_router)
 
 
 def use_route_names_as_operation_ids(app: FastAPI) -> None:

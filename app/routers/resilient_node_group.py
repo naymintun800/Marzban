@@ -17,7 +17,7 @@ from app.models.resilient_node_group import (
     ResilientNodeGroupResponse,
     ResilientNodeGroupsResponse,
 )
-from app.routers.authentication import get_current
+from app.routers.authentication import check_sudo_admin
 from app.models.admin import AdminDetails
 
 router = APIRouter(tags=["Resilient Node Group"], prefix="/api/resilient-node-groups")
@@ -29,7 +29,7 @@ async def get_resilient_node_groups_route(
     limit: int = 50,
     sort: str = None,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(check_sudo_admin),
 ):
     """Get all resilient node groups."""
     resilient_node_groups, total = await get_resilient_node_groups(
@@ -42,7 +42,7 @@ async def get_resilient_node_groups_route(
 async def create_resilient_node_group_route(
     resilient_node_group: ResilientNodeGroupCreate,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(check_sudo_admin),
 ):
     """Create a new resilient node group."""
     
@@ -62,7 +62,7 @@ async def create_resilient_node_group_route(
 async def get_resilient_node_group_route(
     resilient_node_group_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(check_sudo_admin),
 ):
     """Get a resilient node group by ID."""
     db_resilient_node_group = await get_resilient_node_group(db, resilient_node_group_id)
@@ -76,7 +76,7 @@ async def update_resilient_node_group_route(
     resilient_node_group_id: int,
     modify: ResilientNodeGroupModify,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(check_sudo_admin),
 ):
     """Update a resilient node group."""
     
@@ -99,7 +99,7 @@ async def update_resilient_node_group_route(
 async def delete_resilient_node_group_route(
     resilient_node_group_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(check_sudo_admin),
 ):
     """Delete a resilient node group."""
     success = await delete_resilient_node_group(db, resilient_node_group_id)

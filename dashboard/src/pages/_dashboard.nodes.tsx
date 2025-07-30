@@ -1,6 +1,6 @@
 import PageHeader from '@/components/page-header'
 import PageTransition from '@/components/PageTransition'
-import { Cpu, LucideIcon, Share2, Plus, FileText } from 'lucide-react'
+import { Cpu, LucideIcon, Share2, Plus, FileText, Network } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
@@ -16,6 +16,7 @@ const tabs: Tab[] = [
   { id: 'nodes.title', label: 'nodes.title', icon: Share2, url: '/nodes' },
   { id: 'core', label: 'core', icon: Cpu, url: '/nodes/cores' },
   { id: 'nodes.logs.title', label: 'nodes.logs.title', icon: FileText, url: '/nodes/logs' },
+  { id: 'nodes.resilient-groups', label: 'Resilient Groups', icon: Network, url: '/nodes/resilient-groups' },
 ]
 
 const Settings = () => {
@@ -52,6 +53,18 @@ const Settings = () => {
         buttonIcon: undefined,
         buttonText: undefined,
         onButtonClick: undefined,
+      }
+    }
+    if (location.pathname === '/nodes/resilient-groups') {
+      return {
+        title: 'Resilient Node Groups',
+        description: 'Manage node groups for load balancing and redundancy',
+        buttonIcon: Plus,
+        buttonText: 'Create Group',
+        onButtonClick: () => {
+          const event = new CustomEvent('openResilientGroupDialog')
+          window.dispatchEvent(event)
+        },
       }
     }
     return {

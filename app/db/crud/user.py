@@ -1005,3 +1005,26 @@ async def get_user_by_custom_path_and_uuid(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def update_user_sub(db: AsyncSession, user: User, user_agent: str) -> User:
+    """
+    Update user subscription access by creating a subscription update record.
+    
+    Args:
+        db (AsyncSession): Database session.
+        user (User): User object.
+        user_agent (str): User agent string from the request.
+    
+    Returns:
+        User: Updated user object.
+    """
+    from app.db.models import UserSubscriptionUpdate
+    
+    # Create subscription update record
+    sub_update = UserSubscriptionUpdate(user_id=user.id, user_agent=user_agent)
+    db.add(sub_update)
+    await db.commit()
+    await db.refresh(user)
+    
+    return user

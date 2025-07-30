@@ -19,6 +19,7 @@ const Hosts = lazy(() => import('./pages/_dashboard.hosts'))
 const Nodes = lazy(() => import('./pages/_dashboard.nodes'))
 const NodesPage = lazy(() => import('./pages/_dashboard.nodes._index'))
 const NodeLogs = lazy(() => import('./pages/_dashboard.nodes.logs'))
+const ResilientNodeGroups = lazy(() => import('./pages/_dashboard.nodes.resilient-groups'))
 const Settings = lazy(() => import('./pages/_dashboard.settings'))
 const CleanupSettings = lazy(() => import('./pages/_dashboard.settings.cleanup'))
 const DiscordSettings = lazy(() => import('./pages/_dashboard.settings.discord'))
@@ -91,6 +92,10 @@ export const router = createHashRouter([
             {
               path: '/nodes/logs',
               element: <Suspense fallback={<LoadingSpinner />}><NodeLogs /></Suspense>,
+            },
+            {
+              path: '/nodes/resilient-groups',
+              element: <Suspense fallback={<LoadingSpinner />}><ResilientNodeGroups /></Suspense>,
             },
           ],
         },
