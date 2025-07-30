@@ -171,7 +171,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   icon: FileText,
                 },
                 {
-                  title: 'resilient_node_group.title',
+                  title: 'Resilient Groups',
                   url: '/nodes/resilient-groups',
                   icon: Link,
                 },

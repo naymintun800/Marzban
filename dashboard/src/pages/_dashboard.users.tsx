@@ -185,7 +185,7 @@ const Users = () => {
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleImportUsers}>
               <Upload className="h-4 w-4 mr-2" />
-              {t('hiddify_import.import_users')}
+              Import Users
             </Button>
             <Button onClick={handleCreateUser}>
               <Plus className="h-4 w-4 mr-2" />

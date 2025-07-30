@@ -79,12 +79,12 @@ export default function ResilientNodeGroups() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t('resilient_node_group.title')}</h1>
-          <p className="text-muted-foreground">{t('resilient_node_group.description')}</p>
+          <h1 className="text-3xl font-bold tracking-tight">Resilient Node Groups</h1>
+          <p className="text-muted-foreground">Manage node groups for load balancing and redundancy</p>
         </div>
         <Button onClick={() => setCreateModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          {t('resilient_node_group.create')}
+          Create Group
         </Button>
       </div>
 
