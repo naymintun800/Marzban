@@ -22,7 +22,7 @@ import {
   useGetResilientNodeGroups, 
   useDeleteResilientNodeGroup,
   type ResilientNodeGroupResponse 
-} from '@/api'
+} from '@/service/api'
 
 const strategyLabels = {
   CLIENT_DEFAULT: 'Client Default',

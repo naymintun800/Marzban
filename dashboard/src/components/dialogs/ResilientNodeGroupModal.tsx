@@ -40,7 +40,7 @@ import {
   useUpdateResilientNodeGroup,
   type ResilientNodeGroupResponse,
   type NodeResponse
-} from '@/api'
+} from '@/service/api'
 
 const clientStrategyOptions = [
   { value: 'CLIENT_DEFAULT', label: 'Client Default' },

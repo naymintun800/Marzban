@@ -3622,5 +3622,195 @@ export function useBase<TData = Awaited<ReturnType<typeof base>>, TError = Error
   return query
 }
 
-// Custom Features Export
-export * from './custom-features'
+// Custom Features - Inline to avoid build issues
+// Types for Resilient Node Groups
+export type ClientStrategyHint = 'CLIENT_DEFAULT' | 'URL_TEST' | 'BALANCE' | 'ROUND_ROBIN'
+
+export interface ResilientNodeGroupResponse {
+  id: number
+  name: string
+  client_strategy_hint: ClientStrategyHint
+  node_ids: number[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ResilientNodeGroupsResponse {
+  groups: ResilientNodeGroupResponse[]
+  total: number
+}
+
+export interface ResilientNodeGroupCreate {
+  name: string
+  client_strategy_hint: ClientStrategyHint
+  node_ids: number[]
+}
+
+export interface ResilientNodeGroupModify {
+  name?: string
+  client_strategy_hint?: ClientStrategyHint
+  node_ids?: number[]
+}
+
+// Types for Hiddify Import
+export interface HiddifyImportConfig {
+  enable_smart_username_parsing: boolean
+  group_ids: number[]
+  user_template_id?: number
+}
+
+export interface HiddifyImportResponse {
+  successful_imports: number
+  failed_imports: number
+  errors: string[]
+  batch_id: string
+}
+
+// API Functions for Resilient Node Groups
+export const getResilientNodeGroups = async (
+  params?: { offset?: number; limit?: number; sort?: string }
+): Promise<ResilientNodeGroupsResponse> => {
+  return orvalFetcher<ResilientNodeGroupsResponse>({
+    url: '/api/resilient-node-groups',
+    method: 'GET',
+    params,
+  })
+}
+
+export const createResilientNodeGroup = async (
+  data: { resilientNodeGroupCreate: ResilientNodeGroupCreate }
+): Promise<ResilientNodeGroupResponse> => {
+  return orvalFetcher<ResilientNodeGroupResponse>({
+    url: '/api/resilient-node-groups',
+    method: 'POST',
+    data: data.resilientNodeGroupCreate,
+  })
+}
+
+export const updateResilientNodeGroup = async (
+  data: { resilientNodeGroupId: number; resilientNodeGroupModify: ResilientNodeGroupModify }
+): Promise<ResilientNodeGroupResponse> => {
+  return orvalFetcher<ResilientNodeGroupResponse>({
+    url: `/api/resilient-node-groups/${data.resilientNodeGroupId}`,
+    method: 'PUT',
+    data: data.resilientNodeGroupModify,
+  })
+}
+
+export const deleteResilientNodeGroup = async (
+  data: { resilientNodeGroupId: number }
+): Promise<{ message: string }> => {
+  return orvalFetcher<{ message: string }>({
+    url: `/api/resilient-node-groups/${data.resilientNodeGroupId}`,
+    method: 'DELETE',
+  })
+}
+
+// API Functions for Hiddify Import
+export const importHiddifyUsers = async (
+  data: { config: HiddifyImportConfig; file: File }
+): Promise<HiddifyImportResponse> => {
+  const formData = new FormData()
+  formData.append('file', data.file)
+  
+  // Append config as form fields
+  formData.append('enable_smart_username_parsing', data.config.enable_smart_username_parsing.toString())
+  formData.append('group_ids', JSON.stringify(data.config.group_ids))
+  if (data.config.user_template_id) {
+    formData.append('user_template_id', data.config.user_template_id.toString())
+  }
+
+  return orvalFetcher<HiddifyImportResponse>({
+    url: '/api/hiddify/import',
+    method: 'POST',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
+
+export const deleteImportedUsers = async (): Promise<{ deleted_count: number; message: string }> => {
+  return orvalFetcher<{ deleted_count: number; message: string }>({
+    url: '/api/hiddify/delete-imported',
+    method: 'DELETE',
+  })
+}
+
+// React Query Hooks for Resilient Node Groups
+export const useGetResilientNodeGroups = (
+  params?: { offset?: number; limit?: number; sort?: string },
+  options?: UseQueryOptions<ResilientNodeGroupsResponse>
+) => {
+  return useQuery({
+    queryKey: ['resilient-node-groups', params],
+    queryFn: () => getResilientNodeGroups(params),
+    ...options,
+  })
+}
+
+export const useCreateResilientNodeGroup = (
+  options?: UseMutationOptions<
+    ResilientNodeGroupResponse,
+    Error,
+    { resilientNodeGroupCreate: ResilientNodeGroupCreate }
+  >
+) => {
+  return useMutation({
+    mutationFn: createResilientNodeGroup,
+    ...options,
+  })
+}
+
+export const useUpdateResilientNodeGroup = (
+  options?: UseMutationOptions<
+    ResilientNodeGroupResponse,
+    Error,
+    { resilientNodeGroupId: number; resilientNodeGroupModify: ResilientNodeGroupModify }
+  >
+) => {
+  return useMutation({
+    mutationFn: updateResilientNodeGroup,
+    ...options,
+  })
+}
+
+export const useDeleteResilientNodeGroup = (
+  options?: UseMutationOptions<
+    { message: string },
+    Error,
+    { resilientNodeGroupId: number }
+  >
+) => {
+  return useMutation({
+    mutationFn: deleteResilientNodeGroup,
+    ...options,
+  })
+}
+
+// React Query Hooks for Hiddify Import
+export const useImportHiddifyUsers = (
+  options?: UseMutationOptions<
+    HiddifyImportResponse,
+    Error,
+    { config: HiddifyImportConfig; file: File }
+  >
+) => {
+  return useMutation({
+    mutationFn: importHiddifyUsers,
+    ...options,
+  })
+}
+
+export const useDeleteImportedUsers = (
+  options?: UseMutationOptions<
+    { deleted_count: number; message: string },
+    Error,
+    void
+  >
+) => {
+  return useMutation({
+    mutationFn: deleteImportedUsers,
+    ...options,
+  })
+}
