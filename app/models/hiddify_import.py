@@ -15,9 +15,9 @@ HIDDIFY_PACKAGE_DAYS_UNLIMITED_THRESHOLD = 3650  # 10 years
 
 
 class HiddifyImportConfig(BaseModel):
-    set_unlimited_expire: bool = Field(default=False, description="Set unlimited expiration for all users")
     enable_smart_username_parsing: bool = Field(default=True, description="Enable smart username parsing for 'NUMBER NAME' format")
-    selected_protocols: List[str] = Field(..., min_length=1, description="List of protocols to enable")
+    group_ids: List[int] = Field(default_factory=list, description="List of group IDs to assign to imported users")
+    user_template_id: Optional[int] = Field(default=None, description="Optional template ID to apply to imported users")
 
 
 class HiddifyImportResponse(BaseModel):

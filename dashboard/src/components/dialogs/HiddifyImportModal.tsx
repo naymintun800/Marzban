@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { toast } from 'sonner'
-import { Upload, FileText, CheckCircle, XCircle } from 'lucide-react'
+import { Upload, FileText, CheckCircle, XCircle, Trash2 } from 'lucide-react'
 
 import {
   Dialog,
@@ -28,18 +28,14 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ScrollArea } from '@/components/ui/scroll-area'
-
-const protocolOptions = [
-  { id: 'vmess', label: 'VMess' },
-  { id: 'vless', label: 'VLESS' },
-  { id: 'trojan', label: 'Trojan' },
-  { id: 'shadowsocks', label: 'Shadowsocks' },
-]
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import GroupsSelector from '@/components/common/GroupsSelector'
+import { useGetUserTemplates } from '@/service/api'
 
 const formSchema = z.object({
-  set_unlimited_expire: z.boolean().default(false),
   enable_smart_username_parsing: z.boolean().default(true),
-  selected_protocols: z.array(z.string()).min(1, 'At least one protocol must be selected'),
+  group_ids: z.array(z.number()).default([]),
+  user_template_id: z.number().optional(),
   file: z.instanceof(File).optional().refine((file) => {
     if (!file) return false
     return file.name.endsWith('.json')
@@ -68,15 +64,21 @@ export default function HiddifyImportModal({
 }: HiddifyImportModalProps) {
   const { t } = useTranslation()
   const [isImporting, setIsImporting] = useState(false)
+  const [isDeletingPrevious, setIsDeletingPrevious] = useState(false)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      set_unlimited_expire: false,
       enable_smart_username_parsing: true,
-      selected_protocols: ['vmess', 'vless', 'trojan', 'shadowsocks'],
+      group_ids: [],
+    },
+  })
+
+  const { data: userTemplates, isLoading: templatesLoading } = useGetUserTemplates({
+    query: {
+      staleTime: 5 * 60 * 1000,
     },
   })
 
@@ -85,6 +87,32 @@ export default function HiddifyImportModal({
     if (file) {
       setSelectedFile(file)
       form.setValue('file', file)
+    }
+  }
+
+  const handleDeletePreviousImports = async () => {
+    setIsDeletingPrevious(true)
+    try {
+      const response = await fetch('/api/hiddify/delete-imported', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Delete failed')
+      }
+
+      const result = await response.json()
+      toast.success(`Deleted ${result.deleted_count} previously imported users`)
+      onSuccess() // Refresh user list
+    } catch (error: any) {
+      toast.error(error.message || 'Delete failed')
+    } finally {
+      setIsDeletingPrevious(false)
     }
   }
 
@@ -99,9 +127,9 @@ export default function HiddifyImportModal({
       const formData = new FormData()
       formData.append('file', selectedFile)
       formData.append('config', JSON.stringify({
-        set_unlimited_expire: data.set_unlimited_expire,
         enable_smart_username_parsing: data.enable_smart_username_parsing,
-        selected_protocols: data.selected_protocols,
+        group_ids: data.group_ids,
+        user_template_id: data.user_template_id,
       }))
 
       const response = await fetch('/api/hiddify/import', {
@@ -147,9 +175,9 @@ export default function HiddifyImportModal({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
         <DialogHeader>
-          <DialogTitle>{t('hiddify_import.title')}</DialogTitle>
+          <DialogTitle>Import Hiddify Users</DialogTitle>
           <DialogDescription>
-            {t('hiddify_import.description')}
+            Import users from Hiddify JSON export file. Users will be created with the selected groups and template settings.
           </DialogDescription>
         </DialogHeader>
 
@@ -160,7 +188,7 @@ export default function HiddifyImportModal({
                 <CheckCircle className="h-5 w-5 text-green-600" />
                 <div>
                   <div className="text-sm font-medium text-green-900">
-                    {t('hiddify_import.successful_imports')}
+                    Successful Imports
                   </div>
                   <div className="text-lg font-bold text-green-700">
                     {importResult.successful_imports}
@@ -172,7 +200,7 @@ export default function HiddifyImportModal({
                 <XCircle className="h-5 w-5 text-red-600" />
                 <div>
                   <div className="text-sm font-medium text-red-900">
-                    {t('hiddify_import.failed_imports')}
+                    Failed Imports
                   </div>
                   <div className="text-lg font-bold text-red-700">
                     {importResult.failed_imports}
@@ -183,7 +211,7 @@ export default function HiddifyImportModal({
 
             {importResult.errors.length > 0 && (
               <div>
-                <h4 className="font-medium mb-2">{t('hiddify_import.errors')}:</h4>
+                <h4 className="font-medium mb-2">Errors:</h4>
                 <ScrollArea className="h-32 w-full border rounded p-3">
                   <div className="space-y-1">
                     {importResult.errors.map((error, index) => (
@@ -198,7 +226,7 @@ export default function HiddifyImportModal({
 
             <Alert>
               <AlertDescription>
-                {t('hiddify_import.batch_id')}: {importResult.batch_id}
+                Batch ID: {importResult.batch_id}
               </AlertDescription>
             </Alert>
           </div>
@@ -206,7 +234,7 @@ export default function HiddifyImportModal({
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div>
-                <FormLabel>{t('hiddify_import.select_file')}</FormLabel>
+                <FormLabel>Select Hiddify JSON File</FormLabel>
                 <div className="mt-2">
                   <div className="flex items-center justify-center w-full">
                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
@@ -225,9 +253,9 @@ export default function HiddifyImportModal({
                           <>
                             <Upload className="w-8 h-8 mb-4 text-gray-500" />
                             <p className="mb-2 text-sm text-gray-500">
-                              <span className="font-semibold">{t('hiddify_import.click_to_upload')}</span>
+                              <span className="font-semibold">Click to upload</span>
                             </p>
-                            <p className="text-xs text-gray-500">{t('hiddify_import.json_only')}</p>
+                            <p className="text-xs text-gray-500">JSON files only</p>
                           </>
                         )}
                       </div>
@@ -244,110 +272,109 @@ export default function HiddifyImportModal({
 
               <FormField
                 control={form.control}
-                name="selected_protocols"
-                render={() => (
+                name="user_template_id"
+                render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('hiddify_import.protocols')}</FormLabel>
+                    <FormLabel>User Template (Optional)</FormLabel>
                     <FormDescription>
-                      {t('hiddify_import.protocols_description')}
+                      Select a template to apply default settings to imported users
                     </FormDescription>
-                    <div className="grid grid-cols-2 gap-3">
-                      {protocolOptions.map((protocol) => (
-                        <FormField
-                          key={protocol.id}
-                          control={form.control}
-                          name="selected_protocols"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value?.includes(protocol.id)}
-                                  onCheckedChange={(checked) => {
-                                    const updatedValue = checked
-                                      ? [...field.value, protocol.id]
-                                      : field.value?.filter((id) => id !== protocol.id)
-                                    field.onChange(updatedValue)
-                                  }}
-                                />
-                              </FormControl>
-                              <FormLabel className="font-normal cursor-pointer">
-                                {protocol.label}
-                              </FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </div>
+                    <Select onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)} value={field.value?.toString() || ''}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select template (optional)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="">
+                          <span className="text-muted-foreground">No template</span>
+                        </SelectItem>
+                        {userTemplates?.user_templates?.map((template: any) => (
+                          <SelectItem key={template.id} value={template.id.toString()}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="space-y-3">
-                <FormField
-                  control={form.control}
-                  name="set_unlimited_expire"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel className="cursor-pointer">
-                          {t('hiddify_import.unlimited_expire')}
-                        </FormLabel>
-                        <FormDescription>
-                          {t('hiddify_import.unlimited_expire_description')}
-                        </FormDescription>
-                      </div>
-                    </FormItem>
-                  )}
-                />
+              <FormField
+                control={form.control}
+                name="group_ids"
+                render={() => (
+                  <FormItem>
+                    <FormLabel>Groups</FormLabel>
+                    <FormDescription>
+                      Select groups to assign to imported users
+                    </FormDescription>
+                    <GroupsSelector
+                      control={form.control}
+                      name="group_ids"
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                <FormField
-                  control={form.control}
-                  name="enable_smart_username_parsing"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel className="cursor-pointer">
-                          {t('hiddify_import.smart_username_parsing')}
-                        </FormLabel>
-                        <FormDescription>
-                          {t('hiddify_import.smart_username_parsing_description')}
-                        </FormDescription>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="enable_smart_username_parsing"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="cursor-pointer">
+                        Smart Username Parsing
+                      </FormLabel>
+                      <FormDescription>
+                        Automatically extract clean usernames from Hiddify format
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
             </form>
           </Form>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
-            {importResult ? t('common.close') : t('common.cancel')}
-          </Button>
-          {!importResult && (
-            <LoaderButton
-              type="submit"
-              loading={isImporting}
-              disabled={!selectedFile}
-              onClick={form.handleSubmit(onSubmit)}
+          <div className="flex justify-between items-center w-full">
+            <LoaderButton 
+              variant="destructive" 
+              size="sm" 
+              onClick={handleDeletePreviousImports}
+              loading={isDeletingPrevious}
+              disabled={isImporting}
+              className="flex items-center gap-2"
             >
-              {t('hiddify_import.import_users')}
+              <Trash2 className="h-4 w-4" />
+              Delete Previous Imports
             </LoaderButton>
-          )}
+            
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleClose}>
+                {importResult ? 'Close' : 'Cancel'}
+              </Button>
+              {!importResult && (
+                <LoaderButton
+                  type="submit"
+                  loading={isImporting}
+                  disabled={!selectedFile}
+                  onClick={form.handleSubmit(onSubmit)}
+                >
+                  Import Users
+                </LoaderButton>
+              )}
+            </div>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

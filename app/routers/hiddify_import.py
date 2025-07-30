@@ -5,6 +5,9 @@ from fastapi.responses import JSONResponse
 from app.db import AsyncSession, get_db
 from app.db.crud.user import create_user, get_user
 from app.db.crud.group import get_group_by_id
+from app.db.crud.user_template import get_user_template
+from app.db.models import User
+from sqlalchemy import select, delete
 from app.models.hiddify_import import (
     HiddifyImportConfig, 
     HiddifyImportResponse, 
@@ -81,7 +84,7 @@ async def import_hiddify_users(
                 expire = parse_hiddify_expire_time(
                     user_data.expire_time,
                     user_data.package_days,
-                    config.set_unlimited_expire
+                    False  # Don't force unlimited
                 )
                 
                 # Convert data limit
@@ -90,34 +93,59 @@ async def import_hiddify_users(
                 # Map reset strategy
                 reset_strategy = map_hiddify_reset_strategy(user_data.mode)
                 
-                # Get default group (assuming group with ID 1 exists)
-                default_group = await get_group_by_id(db, 1)
-                if not default_group:
-                    errors.append(f"Default group not found for user '{username}'")
+                # Get groups to assign
+                groups = []
+                if config.group_ids:
+                    for group_id in config.group_ids:
+                        group = await get_group_by_id(db, group_id)
+                        if group:
+                            groups.append(group)
+                        else:
+                            errors.append(f"Group ID {group_id} not found for user '{username}'")
+                
+                # If no groups specified or found, use default group
+                if not groups:
+                    default_group = await get_group_by_id(db, 1)
+                    if default_group:
+                        groups = [default_group]
+                
+                if not groups:
+                    errors.append(f"No valid groups found for user '{username}'")
                     failed_imports += 1
                     continue
                 
-                # Create user
-                user_create = UserCreate(
-                    username=username,
-                    status='active' if user_data.enable else 'disabled',
-                    group_ids=[1],  # Default group - you might want to make this configurable
-                    data_limit=data_limit or 0,
-                    expire=expire,
-                    note=f"{note or ''}\n[Hiddify Import - Batch: {batch_id}]".strip(),
-                    data_limit_reset_strategy=reset_strategy,
-                    custom_subscription_path=username.lower(),
-                    custom_uuid=generate_custom_uuid(),
-                    proxy_settings={
-                        "vmess": {"id": None} if "vmess" in config.selected_protocols else {},
-                        "vless": {"id": None, "flow": ""} if "vless" in config.selected_protocols else {},
-                        "trojan": {"password": None} if "trojan" in config.selected_protocols else {},
-                        "shadowsocks": {"password": None, "method": "aes-256-gcm"} if "shadowsocks" in config.selected_protocols else {}
-                    }
-                )
+                # Create user with template or basic settings
+                if config.user_template_id:
+                    template = await get_user_template(db, config.user_template_id)
+                    if template:
+                        # Use template-based creation
+                        user_create = UserCreate(
+                            username=username,
+                            note=f"{note or ''}\n[Hiddify Import - Batch: {batch_id}]".strip(),
+                            custom_subscription_path=username.lower(),
+                            custom_uuid=generate_custom_uuid(),
+                            user_template_id=config.user_template_id
+                        )
+                    else:
+                        errors.append(f"Template ID {config.user_template_id} not found for user '{username}'")
+                        failed_imports += 1
+                        continue
+                else:
+                    # Create user with Hiddify data
+                    user_create = UserCreate(
+                        username=username,
+                        status='active' if user_data.enable else 'disabled',
+                        group_ids=[g.id for g in groups],
+                        data_limit=data_limit or 0,
+                        expire=expire,
+                        note=f"{note or ''}\n[Hiddify Import - Batch: {batch_id}]".strip(),
+                        data_limit_reset_strategy=reset_strategy,
+                        custom_subscription_path=username.lower(),
+                        custom_uuid=generate_custom_uuid(),
+                    )
                 
                 # Create user in database
-                await create_user(db, user_create, [default_group], admin)
+                await create_user(db, user_create, groups, admin)
                 successful_imports += 1
                 
             except Exception as e:
@@ -136,3 +164,31 @@ async def import_hiddify_users(
         raise HTTPException(status_code=400, detail="Invalid JSON file")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+
+
+@router.delete("/delete-imported")
+async def delete_imported_users(
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Delete all users that were imported from Hiddify (identified by batch ID in note)."""
+    
+    try:
+        # Find all users with Hiddify Import batch ID in their notes
+        result = await db.execute(
+            select(User).where(User.note.contains("[Hiddify Import - Batch:"))
+        )
+        users_to_delete = result.scalars().all()
+        
+        deleted_count = 0
+        for user in users_to_delete:
+            await db.delete(user)
+            deleted_count += 1
+        
+        await db.commit()
+        
+        return {"deleted_count": deleted_count, "message": f"Successfully deleted {deleted_count} imported users"}
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
