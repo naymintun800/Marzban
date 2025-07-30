@@ -19,8 +19,8 @@ import {
 
 import ResilientNodeGroupModal from '@/components/dialogs/ResilientNodeGroupModal'
 import { 
-  useGetResilientNodeGroups, 
-  useDeleteResilientNodeGroup,
+  useGetResilientNodeGroupsRoute, 
+  useDeleteResilientNodeGroupRoute,
   type ResilientNodeGroupResponse 
 } from '@/service/api'
 
@@ -37,8 +37,8 @@ export default function ResilientNodeGroups() {
   const [editingGroup, setEditingGroup] = useState<ResilientNodeGroupResponse | null>(null)
   const [deletingGroup, setDeletingGroup] = useState<ResilientNodeGroupResponse | null>(null)
 
-  const { data: groupsData, refetch } = useGetResilientNodeGroups()
-  const deleteMutation = useDeleteResilientNodeGroup()
+  const { data: groupsData, refetch } = useGetResilientNodeGroupsRoute()
+  const deleteMutation = useDeleteResilientNodeGroupRoute()
 
   useEffect(() => {
     const handleOpenDialog = () => {

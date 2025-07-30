@@ -36,8 +36,8 @@ import { LoaderButton } from '@/components/ui/loader-button'
 
 import {
   useGetNodes,
-  useCreateResilientNodeGroup,
-  useUpdateResilientNodeGroup,
+  useCreateResilientNodeGroupRoute,
+  useUpdateResilientNodeGroupRoute,
   type ResilientNodeGroupResponse,
   type NodeResponse
 } from '@/service/api'
@@ -74,8 +74,8 @@ export default function ResilientNodeGroupModal({
   const [availableNodes, setAvailableNodes] = useState<NodeResponse[]>([])
 
   const { data: nodesData } = useGetNodes()
-  const createMutation = useCreateResilientNodeGroup()
-  const updateMutation = useUpdateResilientNodeGroup()
+  const createMutation = useCreateResilientNodeGroupRoute()
+  const updateMutation = useUpdateResilientNodeGroupRoute()
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
