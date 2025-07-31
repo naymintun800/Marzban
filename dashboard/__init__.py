@@ -53,6 +53,8 @@ def run_build():
         print("📦 Build directory missing, attempting to build dashboard...")
         try:
             build()
+            # Mount static files after build
+            ensure_static_mount()
         except FileNotFoundError as e:
             if 'bun' in str(e):
                 print("❌ bun not found - dashboard should be pre-built in Docker image")
@@ -62,9 +64,7 @@ def run_build():
                 raise
     else:
         print(f"📁 Using pre-built dashboard from {build_dir}")
-    
-    # Mount static files
-    ensure_static_mount()
+        # Static files are already mounted at module import time
 
 
 @on_startup
@@ -123,6 +123,7 @@ def ensure_static_mount():
         print(f"   Error details: {traceback.format_exc()}")
         _mounted = False
 
-# Mount immediately if not in DEBUG mode
-if not DEBUG:
-    ensure_static_mount()
+# Mount static files immediately to ensure they're available before any routers
+# This fixes the issue where custom subscription router's catch-all routes
+# like /{path}/{token} intercept /statics/* requests before StaticFiles can handle them
+ensure_static_mount()
