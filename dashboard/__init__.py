@@ -47,10 +47,23 @@ def run_dev():
 
 
 def run_build():
+    # Only build if build directory doesn't exist (for development)
+    # In production, dashboard should be pre-built in Docker image
     if not build_dir.is_dir():
-        build()
+        print("📦 Build directory missing, attempting to build dashboard...")
+        try:
+            build()
+        except FileNotFoundError as e:
+            if 'bun' in str(e):
+                print("❌ bun not found - dashboard should be pre-built in Docker image")
+                print("   Please ensure your Docker build process includes dashboard build step")
+                return
+            else:
+                raise
+    else:
+        print(f"📁 Using pre-built dashboard from {build_dir}")
     
-    # Use the centralized mounting function
+    # Mount static files
     ensure_static_mount()
 
 
