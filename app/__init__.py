@@ -84,10 +84,7 @@ from app.routers.custom_subscription import router as custom_subscription_router
 app.include_router(api_router)
 app.include_router(custom_subscription_router)
 
-# Mount static files AFTER all routers to prevent route conflicts
-# This ensures API routes are matched first before falling back to static files
-from dashboard import ensure_static_mount  # noqa
-ensure_static_mount()
+# Static files are mounted during dashboard initialization
 
 
 def use_route_names_as_operation_ids(app: FastAPI) -> None:

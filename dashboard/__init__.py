@@ -123,5 +123,6 @@ def ensure_static_mount():
         print(f"   Error details: {traceback.format_exc()}")
         _mounted = False
 
-# Don't mount static files here - they need to be mounted AFTER all routers
-# Static files will be mounted at the end of app initialization
+# Mount static files immediately now that custom subscription router uses /sub/ prefix
+# This eliminates the route conflict with /{path}/{token} patterns
+ensure_static_mount()

@@ -101,8 +101,8 @@ async def fetch_config(db: AsyncSession, user, client_type: ConfigFormat) -> tup
     return content, config["media_type"]
 
 
-@router.get("/{path}/{token}/")
-@router.get("/{path}/{token}", include_in_schema=False)
+@router.get("/sub/{path}/{token}/")
+@router.get("/sub/{path}/{token}", include_in_schema=False)
 async def user_subscription_custom_path(
     request: Request,
     path: str,
@@ -142,7 +142,7 @@ async def user_subscription_custom_path(
     return Response(content=conf, media_type=media_type, headers=headers)
 
 
-@router.get("/{path}/{token}/info", response_model=SubscriptionUserResponse)
+@router.get("/sub/{path}/{token}/info", response_model=SubscriptionUserResponse)
 async def user_subscription_info_custom_path(
     path: str, 
     token: str, 
@@ -156,7 +156,7 @@ async def user_subscription_info_custom_path(
     return UserResponse.model_validate(user)
 
 
-@router.get("/{path}/{token}/usage", response_model=UserUsageStatsList)
+@router.get("/sub/{path}/{token}/usage", response_model=UserUsageStatsList)
 async def get_sub_user_usage_custom_path(
     path: str,
     token: str,
